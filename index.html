@@ -1,0 +1,3471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Humor op de Muren - Academie Antwerpen - 360° Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #e8c96a;
+    --gold-dim: #8a6f2e;
+    --ink: #1a1410;
+    --parchment: #f5efe0;
+    --parchment-dark: #ede3cc;
+    --panel-bg: rgba(10, 8, 5, 0.88);
+    --panel-border: rgba(201, 168, 76, 0.25);
+    --serif: 'Playfair Display', Georgia, serif;
+    --body-serif: 'Cormorant Garamond', Georgia, serif;
+    --accent-serif: 'IM Fell English', Georgia, serif;
+  }
+
+  html, body {
+    height: 100%;
+    height: 100dvh; /* iOS Safari: shrinks correctly when URL bar retracts */
+    width: 100%;
+    overflow: hidden;
+    background: #0a0805;
+    font-family: var(--body-serif);
+    color: var(--parchment);
+  }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    background: rgba(10, 8, 5, 0.96);
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    z-index: 200;
+    backdrop-filter: blur(12px);
+  }
+
+  #topbar .site-title {
+    font-family: var(--serif);
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  #topbar .site-subtitle {
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: rgba(201, 168, 76, 0.55);
+    letter-spacing: 0.06em;
+  }
+
+  #topbar .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .ctrl-btn {
+    background: rgba(201,168,76,0.08);
+    border: 1px solid rgba(201,168,76,0.2);
+    color: var(--gold-light);
+    font-family: var(--body-serif);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 1px;
+  }
+  .ctrl-btn:hover {
+    background: rgba(201,168,76,0.18);
+    border-color: rgba(201,168,76,0.5);
+    color: #fff;
+  }
+
+  /* ── LAYOUT ── */
+  #app {
+    position: fixed;
+    top: 52px; bottom: 0; left: 0; right: 0;
+    display: flex;
+  }
+
+  /* ── 360 VIEWER ── */
+  #viewer-wrap {
+    position: relative;
+    flex: 1 1 0%;
+    min-width: 0;
+    background: #000;
+    overflow: hidden;
+  }
+
+  #panorama-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    user-select: none;
+  }
+  #panorama-canvas:active { cursor: grabbing; }
+
+  /* Sky gradient overlay (decorative, applied via a fake panorama) */
+  #fake-panorama {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 30%,
+      #2c1e0f 0%, #1a1008 35%, #0a0805 70%, #050302 100%);
+  }
+
+  /* ── HOTSPOT LAYER ── */
+  #hotspot-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .hotspot {
+    position: absolute;
+    transform: translate(-50%, -50%) scale(var(--hs-scale, 1));
+    transform-origin: center;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    pointer-events: all;
+    z-index: 10;
+    transition: opacity 0.2s, transform 0.25s;
+  }
+
+  /* Cluster — hidden absorbed dot */
+  .hotspot.cluster-hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* Cluster representative — dot stays visible, badge overlays it */
+  .hotspot-cluster-badge {
+    display: none;
+    position: absolute;
+    top: -8px; right: -8px;
+    min-width: 16px; height: 16px;
+    background: var(--gold);
+    border-radius: 8px;
+    font-family: var(--serif);
+    font-size: 8px;
+    font-weight: 600;
+    color: var(--ink);
+    padding: 0 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 6px rgba(201,168,76,0.5);
+  }
+  .hotspot.cluster-rep .hotspot-cluster-badge { display: flex; }
+
+  .hotspot-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    animation: pulse-ring 2.4s ease-in-out infinite;
+    opacity: 0;
+  }
+  .hotspot-ring:nth-child(2) { animation-delay: 0.8s; }
+  .hotspot-ring:nth-child(3) { animation-delay: 1.6s; }
+
+  @keyframes pulse-ring {
+    0%   { transform: scale(0.6); opacity: 0.9; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  .hotspot-core {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px; height: 14px;
+    background: var(--gold);
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(201,168,76,0.7), 0 0 24px rgba(201,168,76,0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .hotspot:hover .hotspot-core,
+  .hotspot.active .hotspot-core {
+    transform: translate(-50%, -50%) scale(1.3);
+    box-shadow: 0 0 18px rgba(232,201,106,0.9), 0 0 36px rgba(201,168,76,0.5);
+  }
+
+  .hotspot.active .hotspot-core {
+    background: #fff;
+  }
+
+  /* Tooltip */
+  .hotspot-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10,8,5,0.94);
+    border: 1px solid var(--panel-border);
+    color: var(--parchment);
+    font-family: var(--serif);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    padding: 6px 14px 7px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(8px);
+  }
+  .hotspot-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--panel-border);
+  }
+
+  .hotspot:hover .hotspot-tooltip { opacity: 1; }
+
+  .mobile-only { display: none; }
+
+  /* ── RECTANGLE HOTSPOT (inscription / text panel type) ── */
+  #rect-hotspot-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9;
+  }
+
+  /* SVG overlay that holds all rect hotspot polygons */
+  #rect-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .rect-hotspot-group {
+    pointer-events: all;
+    cursor: pointer;
+  }
+
+  .rect-fill {
+    fill: rgba(201,168,76,0.07);
+    transition: fill 0.2s;
+  }
+  .rect-hotspot-group:hover .rect-fill,
+  .rect-hotspot-group.active .rect-fill {
+    fill: rgba(201,168,76,0.16);
+  }
+
+  .rect-border {
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: var(--rect-stroke, 1.5);
+    stroke-dasharray: 6 4;
+    stroke-dashoffset: 0;
+    opacity: 0.7;
+    animation: march-dashes 12s linear infinite;
+    transition: opacity 0.2s, stroke-width 0.2s;
+  }
+  .rect-hotspot-group:hover .rect-border,
+  .rect-hotspot-group.active .rect-border {
+    opacity: 1;
+    stroke-width: calc(var(--rect-stroke, 1.5) * 1.3);
+    stroke-dasharray: none;
+    animation: none;
+  }
+
+  @keyframes march-dashes {
+    to { stroke-dashoffset: -40; }
+  }
+
+  /* Corner tick marks */
+  .rect-corner {
+    fill: none;
+    stroke: var(--gold-light);
+    stroke-width: 2;
+    opacity: 0.9;
+  }
+
+  /* Label tag attached to top-left corner — hidden until hover/active */
+  .rect-label-wrap {
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .rect-hotspot-group:hover .rect-label-wrap,
+  .rect-hotspot-group.active .rect-label-wrap {
+    opacity: 1;
+  }
+  .rect-label-bg {
+    fill: rgba(10,8,5,0.88);
+    rx: 1;
+  }
+  .rect-label-text {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 10px;
+    fill: var(--gold-light);
+    letter-spacing: 0.1em;
+    dominant-baseline: middle;
+  }
+  .rect-label-badge {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 8px;
+    fill: var(--ink);
+    dominant-baseline: middle;
+    text-anchor: middle;
+  }
+
+  /* ── INSCRIPTION PANEL styles (in side panel) ── */
+  .inscription-block {
+    margin: 14px 0 10px;
+    border: 1px solid rgba(201,168,76,0.2);
+    background: rgba(201,168,76,0.04);
+    overflow: hidden;
+  }
+
+  .inscription-bitmap {
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    display: block;
+    filter: sepia(30%) brightness(0.8) contrast(1.1);
+    transition: filter 0.3s;
+    border-bottom: 1px solid rgba(201,168,76,0.15);
+  }
+  .annotation-entry.active .inscription-bitmap {
+    filter: sepia(15%) brightness(0.95) contrast(1.05);
+  }
+
+  .inscription-label {
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    padding: 6px 10px 4px;
+  }
+
+  .inscription-transcription {
+    padding: 8px 14px 14px;
+    font-family: 'IM Fell English', Georgia, serif;
+    font-size: 13.5px;
+    line-height: 1.9;
+    color: rgba(245,239,224,0.88);
+    letter-spacing: 0.04em;
+    font-style: italic;
+    border-top: 1px solid rgba(201,168,76,0.1);
+  }
+
+  .inscription-transcription .line {
+    display: block;
+  }
+
+  .inscription-transcription .line-num {
+    display: inline-block;
+    width: 18px;
+    font-family: var(--body-serif);
+    font-size: 9px;
+    font-style: normal;
+    color: var(--gold-dim);
+    vertical-align: top;
+    padding-top: 3px;
+    user-select: none;
+  }
+
+  .inscription-translation {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-left: 2px solid rgba(201,168,76,0.3);
+    font-family: var(--body-serif);
+    font-size: 12.5px;
+    font-style: normal;
+    line-height: 1.65;
+    color: rgba(232,211,176,0.6);
+  }
+
+  .inscription-translation strong {
+    display: block;
+    font-family: var(--accent-serif);
+    font-size: 9px;
+    font-style: italic;
+    letter-spacing: 0.15em;
+    color: var(--gold-dim);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  /* Viewer hint */
+  #viewer-hint {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: rgba(201,168,76,0.5);
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    text-align: center;
+  }
+
+  /* ── VIEWER CONTROLS (reset + zoom, grouped) ── */
+  #viewer-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(10,8,5,0.75);
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 3px;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+    z-index: 20;
+  }
+
+  .vc-btn {
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: none;
+    color: var(--gold-light);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .vc-btn svg { width: 16px; height: 16px; }
+
+  .vc-btn:hover  { background: rgba(201,168,76,0.18); color: #fff; }
+  .vc-btn:active { background: rgba(201,168,76,0.32); }
+  .vc-btn:disabled { opacity: 0.3; cursor: default; }
+
+  .vc-divider {
+    width: 60%;
+    height: 1px;
+    background: rgba(201,168,76,0.18);
+    flex-shrink: 0;
+  }
+
+  #zoom-indicator {
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 9px;
+    color: rgba(201,168,76,0.45);
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    padding: 2px 0;
+    width: 36px;
+    text-align: center;
+  }
+
+  /* ── SIDE PANEL ── */
+  #side-panel {
+    width: 380px;
+    flex-shrink: 0;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(16px);
+    overflow: hidden;
+    position: relative;
+  }
+
+  #side-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 200px;
+    background: linear-gradient(to bottom,
+      rgba(201,168,76,0.05) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Panel header */
+  #panel-header {
+    padding: 24px 28px 18px;
+    border-bottom: 1px solid var(--panel-border);
+    flex-shrink: 0;
+  }
+
+  #panel-header .label {
+    font-family: var(--accent-serif);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+
+  #panel-header h2 {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--parchment);
+    line-height: 1.25;
+  }
+
+  #panel-header .panel-meta {
+    font-family: var(--body-serif);
+    font-size: 12px;
+    color: rgba(232,211,176,0.45);
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  /* Annotation list */
+  #annotation-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(201,168,76,0.2) transparent;
+  }
+
+  #annotation-list::-webkit-scrollbar { width: 4px; }
+  #annotation-list::-webkit-scrollbar-track { background: transparent; }
+  #annotation-list::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.2); border-radius: 2px; }
+
+  .annotation-entry {
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+    padding: 22px 28px;
+    cursor: pointer;
+    transition: background 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .annotation-entry::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--gold);
+    transform: scaleY(0);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    transform-origin: bottom;
+  }
+
+  .annotation-entry:hover { background: rgba(201,168,76,0.04); }
+
+  .annotation-entry.active {
+    background: rgba(201,168,76,0.07);
+  }
+  .annotation-entry.active::before { transform: scaleY(1); }
+
+  .entry-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+
+  .entry-num  { display: none; }
+  .hotspot-num { display: none; }
+
+  .entry-title {
+    font-family: var(--serif);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--parchment);
+    line-height: 1.3;
+    flex: 1;
+  }
+
+  .entry-date {
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 11px;
+    color: var(--gold-dim);
+    margin-bottom: 10px;
+    padding-left: 36px;
+  }
+
+  .entry-body {
+    font-family: var(--body-serif);
+    font-size: 14.5px;
+    line-height: 1.75;
+    color: rgba(232,211,176,0.78);
+    padding-left: 36px;
+  }
+
+  .entry-body strong { color: var(--parchment); font-weight: 500; }
+  .entry-body em { font-style: italic; color: rgba(201,168,76,0.85); }
+
+  .entry-body .entry-image {
+    width: calc(100% + 0px);
+    height: 130px;
+    object-fit: cover;
+    margin: 12px 0;
+    border: 1px solid rgba(201,168,76,0.15);
+    display: block;
+    filter: sepia(20%) brightness(0.85);
+    transition: filter 0.3s;
+  }
+  .annotation-entry.active .entry-body .entry-image { filter: sepia(10%) brightness(0.95); }
+
+  .look-at-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 14px;
+    background: transparent;
+    border: 1px solid rgba(201,168,76,0.3);
+    color: var(--gold);
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    padding: 6px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 1px;
+  }
+
+  .look-at-btn:hover {
+    background: rgba(201,168,76,0.12);
+    border-color: var(--gold);
+    color: var(--gold-light);
+  }
+
+  .look-at-btn svg {
+    width: 12px; height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  /* ── See-also links ── */
+  .see-also {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(201,168,76,0.12);
+  }
+  .see-also-label {
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 8px;
+  }
+  .see-also-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .see-also-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid rgba(201,168,76,0.28);
+    color: rgba(232,201,106,0.8);
+    font-family: var(--serif);
+    font-size: 11px;
+    padding: 4px 10px 4px 8px;
+    cursor: pointer;
+    transition: all 0.18s;
+    border-radius: 1px;
+    text-align: left;
+    line-height: 1.3;
+  }
+  .see-also-chip:hover {
+    background: rgba(201,168,76,0.12);
+    border-color: var(--gold);
+    color: var(--gold-light);
+  }
+  .see-also-chip-icon {
+    opacity: 0.55;
+    flex-shrink: 0;
+    font-size: 9px;
+  }
+
+  /* ── DIVIDER (resizer) ── */
+  #divider {
+    width: 4px;
+    background: var(--panel-border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    position: relative;
+  }
+  #divider:hover, #divider.dragging { background: rgba(201,168,76,0.45); }
+
+  /* ── MOBILE ── */
+  @media (max-width: 768px) {
+    /* ── Layout ── */
+    #app { flex-direction: column; top: 36px; height: calc(100dvh - 36px); }
+    #divider { display: none; }
+    #viewer-wrap { height: 60%; flex: none; }
+    #side-panel {
+      width: 100%; height: 40%;
+      border-left: none;
+      border-top: 1px solid var(--panel-border);
+    }
+    #topbar .site-subtitle { display: none; }
+    #active-indicator { display: none !important; }
+    #btn-load-pano, #pano-file-input, #btn-editor { display: none; }
+    #editor-overlay { display: none !important; }
+    #btn-toggle-panel { display: none; } /* panel always visible on mobile */
+    .ctrl-btn { font-size: 10px; padding: 4px 10px; }
+
+    /* ── Panel header — minimal ── */
+    #panel-header { padding: 8px 14px 6px; }
+    #panel-header .label { display: none; }
+    #panel-header h2 { font-size: 13px; margin: 0; }
+    #panel-header .panel-meta { display: none; }
+    #panel-header .ornament { display: none; }
+
+    .mobile-only { display: flex; }
+    span.mobile-only { display: inline; }
+    .look-at-btn { display: none; }
+    #start-hint {
+      position: fixed !important;
+      top: 0 !important; left: 0 !important;
+      right: 0 !important; bottom: 0 !important;
+      width: 100% !important; height: 100% !important;
+      z-index: 9500 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background: rgba(5,3,1,0.82) !important;
+      padding: 20px !important;
+    }
+    #start-hint.visible { opacity: 1 !important; pointer-events: all !important; }
+    #start-hint-inner {
+      padding: 20px 18px 14px;
+      gap: 10px;
+      max-width: 100%;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+    }
+    #start-hint-welcome { font-size: 16px; padding-bottom: 9px; }
+    .sh-text { font-size: 13px; line-height: 1.5; }
+    .sh-icon { font-size: 15px; }
+    .sh-text kbd { display: none; }
+    #start-hint-close {
+      align-self: stretch;
+      text-align: center;
+      font-size: 12px;
+      padding: 8px;
+      margin-top: 6px;
+    }
+  }
+
+  /* ── LOADING SCREEN ── */
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: #0a0805;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    gap: 20px;
+    transition: opacity 0.8s;
+  }
+
+  #loading.fade-out { opacity: 0; pointer-events: none; }
+
+  .loading-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .loading-bar-wrap {
+    width: 200px;
+    height: 1px;
+    background: rgba(201,168,76,0.15);
+  }
+
+  .loading-bar {
+    height: 100%;
+    background: var(--gold);
+    width: 0;
+    animation: load-progress 1.4s ease-out forwards;
+  }
+
+  @keyframes load-progress { to { width: 100%; } }
+
+  .loading-sub {
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: rgba(201,168,76,0.45);
+    letter-spacing: 0.12em;
+  }
+
+  /* ── ORNAMENT ── */
+  .ornament {
+    display: block;
+    text-align: center;
+    color: var(--gold-dim);
+    font-size: 18px;
+    opacity: 0.6;
+    margin: 14px 0 0;
+    user-select: none;
+  }
+
+  /* ── ACTIVE INDICATOR in topbar ── */
+  #active-indicator {
+    font-family: var(--accent-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: rgba(201,168,76,0.6);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #active-indicator span { color: var(--gold-light); }
+
+  #active-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  /* ── STARTUP HINT OVERLAY ── */
+  #start-hint {
+    position: fixed;
+    /* Align bottom with viewer controls (bottom: 20px).
+       Centre horizontally in the viewer area (viewport minus 380px side panel). */
+    bottom: 20px;
+    left: 0;
+    /* Side panel is 380px — viewer occupies the rest */
+    right: 380px;
+    z-index: 8000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s;
+  }
+  #start-hint.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+  #start-hint.fade-out {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #start-hint-inner {
+    background: rgba(10,8,5,0.80);
+    border: 1px solid rgba(201,168,76,0.35);
+    backdrop-filter: blur(12px);
+    padding: 20px 24px 16px;
+    max-width: 420px;
+    width: calc(100% - 48px);
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+  #start-hint-welcome {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gold-light);
+    letter-spacing: 0.06em;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+  }
+  .sh-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .sh-icon {
+    font-size: 16px;
+    color: var(--gold);
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    margin-top: 1px;
+  }
+  .sh-text {
+    font-family: var(--body-serif);
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: rgba(232,211,176,0.85);
+  }
+  .sh-text strong { color: var(--parchment); font-weight: 500; }
+  .sh-text em { font-style: italic; color: var(--gold-light); }
+  .sh-text kbd {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 2px;
+    padding: 1px 5px;
+    color: var(--gold-light);
+  }
+  #start-hint-close {
+    align-self: flex-end;
+    margin-top: 4px;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold-light);
+    font-family: var(--body-serif);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 5px 18px;
+    cursor: pointer;
+    transition: all 0.18s;
+    border-radius: 1px;
+  }
+  #start-hint-close:hover {
+    background: rgba(201,168,76,0.3);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div id="loading">
+  <div class="loading-title" id="loading-title">Heritage 360°</div>
+  <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
+  <div class="loading-sub">De ruimtevisualisatie wordt voorbereid…</div>
+</div>
+
+<!-- Top Bar -->
+<div id="topbar">
+  <div>
+    <div class="site-title" id="site-title"></div>
+    <div class="site-subtitle" id="site-subtitle"></div>
+  </div>
+
+  <div id="active-indicator">
+    <div id="active-dot"></div>
+    Bekijkt: <span id="active-label">—</span>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btn-load-pano" title="Laad een lokaal equirectangulaire panoramabestand">⬆ Panorama laden</button>
+    <input type="file" id="pano-file-input" accept="image/*" style="display:none">
+    <button class="ctrl-btn" id="btn-autoplay">⟳ Rondleiding</button>
+    <button class="ctrl-btn" id="btn-toggle-panel">Details ◧</button>
+    <button class="ctrl-btn" id="btn-editor" style="border-color:rgba(201,168,76,0.45);color:var(--gold)">✎ Bewerken</button>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+
+  <!-- 360 Viewer -->
+  <div id="viewer-wrap">
+    <!-- WebGL panorama renderer -->
+    <canvas id="panorama-canvas"></canvas>
+
+    <!-- Hotspots (point) -->
+    <div id="hotspot-layer"></div>
+
+    <!-- Rectangle hotspots (inscription / text panel) -->
+    <div id="rect-hotspot-layer">
+      <svg id="rect-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <!-- Viewer controls: reset + zoom -->
+    <div id="viewer-controls">
+      <button class="vc-btn" id="btn-reset-view" title="Terug naar beginpositie">
+        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 3L3 9h2.5v8h9V9H17L10 3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </button>
+      <div class="vc-divider"></div>
+      <button class="vc-btn" id="btn-zoom-in"  title="Inzoomen">+</button>
+      <div id="zoom-indicator">90°</div>
+      <button class="vc-btn" id="btn-zoom-out" title="Uitzoomen">−</button>
+    </div>
+
+    <!-- Pick mode ghost overlay -->
+    <svg id="pick-ghost-svg" xmlns="http://www.w3.org/2000/svg">
+      <polygon id="pick-ghost-poly" points="" style="display:none"/>
+      <circle id="pick-anchor-dot" r="5" style="display:none"/>
+      <g id="pick-crosshair" style="display:none">
+        <line id="pch-h" stroke="rgba(201,168,76,0.6)" stroke-width="1"/>
+        <line id="pch-v" stroke="rgba(201,168,76,0.6)" stroke-width="1"/>
+      </g>
+      <rect id="pick-hint-box" x="0" y="0" width="0" height="0" rx="1"/>
+      <text id="pick-label" x="0" y="0"></text>
+    </svg>
+  </div>
+
+  <!-- Startup hint overlay -->
+  <div id="start-hint">
+    <div id="start-hint-inner">
+      <div id="start-hint-welcome"></div>
+      <div class="sh-row">
+        <span class="sh-icon">↔</span>
+        <span class="sh-text"><strong>Verkennen</strong> — sleep het beeld om rond te kijken</span>
+      </div>
+      <div class="sh-row">
+        <span class="sh-icon">⊕</span>
+        <span class="sh-text"><strong>Inzoomen</strong> — scroll of gebruik <kbd>+</kbd> / <kbd>−</kbd> om markeringen zichtbaar te maken<span class="mobile-only"> · knijp met twee vingers</span></span>
+      </div>
+      <div class="sh-row">
+        <span class="sh-icon">⌂</span>
+        <span class="sh-text"><strong>Beginpositie</strong> — klik het huis-icoon rechtsonder om terug te keren</span>
+      </div>
+      <div class="sh-row">
+        <span class="sh-icon">⟳</span>
+        <span class="sh-text"><strong>Rondleiding</strong> — klik <em>Rondleiding</em> bovenaan voor een automatische tour</span>
+      </div>
+      <div class="sh-row mobile-only">
+        <span class="sh-icon">☰</span>
+        <span class="sh-text"><strong>Annotaties</strong> — zie informatie per markering in het paneel onderaan</span>
+      </div>
+      <button id="start-hint-close">Begrepen</button>
+    </div>
+  </div>
+
+  <!-- Pick escape banner (shown outside viewer-wrap so always visible) -->
+  <div id="pick-banner">Klik linksboven op het panorama · Esc om te annuleren</div>
+
+  <!-- Divider -->
+  <div id="divider"></div>
+
+  <!-- Side Panel -->
+  <div id="side-panel">
+    <div id="panel-header">
+      <div class="label" id="panel-label"></div>
+      <h2 id="panel-heading"></h2>
+      <div class="panel-meta" id="panel-meta"></div>
+      <span class="ornament">⸻ ✦ ⸻</span>
+    </div>
+    <div id="annotation-list"></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     HOTSPOT EDITOR MODAL
+════════════════════════════════════════════════════════ -->
+<div id="editor-overlay">
+
+  <div id="editor-modal">
+    <div id="editor-header">
+      <div id="editor-title">Markering bewerken</div>
+      <div id="editor-header-btns">
+        <button class="ed-btn ed-btn-primary" id="ed-btn-export">⬇ Exporteer annotations.js</button>
+        <button class="ed-btn" id="ed-btn-close">✕ Sluiten</button>
+      </div>
+    </div>
+
+    <!-- LIST VIEW -->
+    <div id="ed-list-view">
+      <div id="ed-list-toolbar">
+        <button class="ed-btn ed-btn-primary" id="ed-btn-add-point">+ Punt markering</button>
+        <button class="ed-btn ed-btn-primary" id="ed-btn-add-inscription">+ Inscriptie rechthoek</button>
+        <span id="ed-list-hint">Huidige weergave: <span id="ed-cur-yaw">—</span>° yaw / <span id="ed-cur-pitch">—</span>° pitch</span>
+      </div>
+      <div id="ed-hotspot-list"></div>
+    </div>
+
+    <!-- FORM VIEW -->
+    <div id="ed-form-view" style="display:none">
+      <div id="ed-form-nav">
+        <button class="ed-btn" id="ed-btn-back">← Terug naar lijst</button>
+        <span id="ed-form-title">Markering bewerken</span>
+      </div>
+
+      <div id="ed-form-body">
+        <div class="ed-form-section" id="ed-section-common">
+          <div class="ed-field-row">
+            <div class="ed-field">
+              <label>Type</label>
+              <select id="ef-type">
+                <option value="point">Punt</option>
+                <option value="inscription">Inscriptie</option>
+              </select>
+            </div>
+            <div class="ed-field">
+              <label>ID <span class="ed-hint">(uniek, geen spaties)</span></label>
+              <input type="text" id="ef-id" placeholder="e.g. altar-01">
+            </div>
+          </div>
+          <div class="ed-field-row">
+            <div class="ed-field">
+              <label>Titel</label>
+              <input type="text" id="ef-title" placeholder="Short display name">
+            </div>
+            <div class="ed-field">
+              <label>Datum / Locatie</label>
+              <input type="text" id="ef-date" placeholder="e.g. 1704 · South nave">
+            </div>
+          </div>
+          <div class="ed-field">
+            <label>Afbeelding URL</label>
+            <input type="text" id="ef-image" placeholder="https://… of relatief pad">
+          </div>
+          <div class="ed-field-row">
+            <div class="ed-field">
+              <label>Zoom (FOV °) <span class="ed-hint">20–120 · kleiner = meer ingezoomd</span></label>
+              <input type="number" id="ef-zoom" min="20" max="120" step="1" placeholder="90 (default)">
+            </div>
+            <button class="ed-btn ed-btn-capture" id="ef-capture-zoom" title="Use current zoom level">⊕ Gebruik huidig</button>
+          </div>
+          <div class="ed-field">
+            <label>Inhoud <span class="ed-hint">(HTML toegestaan: &lt;strong&gt;, &lt;em&gt;)</span></label>
+            <textarea id="ef-content" rows="4"></textarea>
+          </div>
+          <div class="ed-field">
+            <label>Gerelateerde markeringen <span class="ed-hint">(Ctrl/Cmd+klik voor meerdere)</span></label>
+            <select id="ef-links" multiple size="4"></select>
+          </div>
+        </div>
+
+        <!-- POINT-only fields -->
+        <div class="ed-form-section" id="ed-section-point">
+          <div class="ed-section-label">Punt positie</div>
+          <div class="ed-field-row">
+            <div class="ed-field">
+              <label>Yaw °</label>
+              <input type="number" id="ef-yaw" step="0.1" placeholder="0">
+            </div>
+            <div class="ed-field">
+              <label>Pitch °</label>
+              <input type="number" id="ef-pitch" step="0.1" placeholder="0">
+            </div>
+            <button class="ed-btn ed-btn-capture" id="ef-capture-point" title="Use current camera view">⊕ Vastleggen</button>
+          </div>
+        </div>
+
+        <!-- INSCRIPTION-only fields -->
+        <div class="ed-form-section" id="ed-section-inscription" style="display:none">
+          <div class="ed-section-label">Rechthoek hoeken <span class="ed-hint">[yaw°, pitch°] — LB, RB, RO, LO</span></div>
+
+          <!-- Interactive pick strip -->
+          <div id="ed-pick-strip">
+            <button class="ed-btn ed-btn-pick" id="ef-pick-tl">⊕ Kies linksboven</button>
+            <button class="ed-btn ed-btn-pick" id="ef-pick-br">⊕ Kies rechtsonder</button>
+            <span id="ed-pick-status"></span>
+          </div>
+
+          <div class="ed-corners-grid">
+            <div class="ed-corner-pair" id="ec-0"><span>TL</span>
+              <input type="number" class="ec-yaw" step="0.1" placeholder="yaw">
+              <input type="number" class="ec-pitch" step="0.1" placeholder="pitch">
+            </div>
+            <div class="ed-corner-pair" id="ec-1"><span>TR</span>
+              <input type="number" class="ec-yaw" step="0.1" placeholder="yaw">
+              <input type="number" class="ec-pitch" step="0.1" placeholder="pitch">
+            </div>
+            <div class="ed-corner-pair" id="ec-2"><span>BR</span>
+              <input type="number" class="ec-yaw" step="0.1" placeholder="yaw">
+              <input type="number" class="ec-pitch" step="0.1" placeholder="pitch">
+            </div>
+            <div class="ed-corner-pair" id="ec-3"><span>BL</span>
+              <input type="number" class="ec-yaw" step="0.1" placeholder="yaw">
+              <input type="number" class="ec-pitch" step="0.1" placeholder="pitch">
+            </div>
+          </div>
+          <div class="ed-field">
+            <label>Transcriptie <span class="ed-hint">(één regel per rij)</span></label>
+            <textarea id="ef-transcription" rows="6" placeholder="D · O · M&#10;BASILICAM · HANC…"></textarea>
+          </div>
+          <div class="ed-field">
+            <label>Vertaling</label>
+            <textarea id="ef-translation" rows="2" placeholder="English rendering…"></textarea>
+          </div>
+        </div>
+
+        <div id="ed-form-actions">
+          <button class="ed-btn ed-btn-danger" id="ed-btn-delete">🗑 Verwijderen</button>
+          <button class="ed-btn ed-btn-primary" id="ed-btn-save">Opslaan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPORT VIEW -->
+    <div id="ed-export-view" style="display:none">
+      <div id="ed-form-nav">
+        <button class="ed-btn" id="ed-btn-export-back">← Terug</button>
+        <span id="ed-form-title">Exporteer — kopieer de tekst hieronder naar annotations.js</span>
+      </div>
+      <textarea id="ed-export-textarea" readonly spellcheck="false"></textarea>
+      <div id="ed-export-actions">
+        <button class="ed-btn ed-btn-primary" id="ed-btn-copy">⎘ Kopieer naar klembord</button>
+        <span id="ed-copy-confirm" style="opacity:0;transition:opacity 0.4s;font-style:italic;color:var(--gold)">Copied!</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+/* ── EDITOR OVERLAY ─────────────────────────────────────── */
+#editor-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5,3,1,0.82);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+#editor-overlay.open { display: flex; }
+
+#editor-modal {
+  width: min(820px, 96vw);
+  max-height: 88vh;
+  background: #13100a;
+  border: 1px solid rgba(201,168,76,0.3);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--body-serif);
+  color: var(--parchment);
+  overflow: hidden;
+}
+
+#editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(201,168,76,0.2);
+  flex-shrink: 0;
+  background: rgba(201,168,76,0.04);
+}
+#editor-title {
+  font-family: var(--serif);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+#editor-header-btns { display: flex; gap: 8px; }
+
+/* Buttons */
+.ed-btn {
+  background: rgba(201,168,76,0.08);
+  border: 1px solid rgba(201,168,76,0.22);
+  color: var(--gold-light);
+  font-family: var(--body-serif);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.18s;
+  border-radius: 1px;
+  white-space: nowrap;
+}
+.ed-btn:hover { background: rgba(201,168,76,0.18); border-color: rgba(201,168,76,0.5); color:#fff; }
+.ed-btn-primary { background: rgba(201,168,76,0.18); border-color: rgba(201,168,76,0.5); color: var(--gold-light); }
+.ed-btn-primary:hover { background: rgba(201,168,76,0.32); color: #fff; }
+.ed-btn-danger { border-color: rgba(200,60,60,0.4); color: rgba(255,120,100,0.85); }
+.ed-btn-danger:hover { background: rgba(200,60,60,0.18); border-color: rgba(200,60,60,0.7); }
+.ed-btn-capture { padding: 5px 10px; font-size: 12px; align-self: flex-end; }
+
+/* List view */
+#ed-list-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+#ed-list-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(201,168,76,0.1);
+  flex-shrink: 0;
+}
+#ed-list-hint {
+  margin-left: auto;
+  font-family: var(--accent-serif);
+  font-style: italic;
+  font-size: 11px;
+  color: rgba(201,168,76,0.5);
+}
+
+#ed-hotspot-list {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201,168,76,0.2) transparent;
+}
+#ed-hotspot-list::-webkit-scrollbar { width: 4px; }
+#ed-hotspot-list::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.2); }
+
+.ed-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(201,168,76,0.07);
+  transition: background 0.15s;
+}
+.ed-list-item:hover { background: rgba(201,168,76,0.05); }
+
+.ed-list-num {
+  width: 22px; height: 22px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif);
+  font-size: 9px;
+  color: var(--gold);
+  flex-shrink: 0;
+}
+.ed-list-type {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  border: 1px solid rgba(201,168,76,0.2);
+  padding: 2px 7px;
+  flex-shrink: 0;
+}
+.ed-list-title {
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--parchment);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ed-list-pos {
+  font-family: var(--accent-serif);
+  font-style: italic;
+  font-size: 10px;
+  color: rgba(201,168,76,0.45);
+  flex-shrink: 0;
+}
+.ed-list-edit {
+  padding: 3px 10px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* Form view */
+#ed-form-view, #ed-export-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+#ed-form-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(201,168,76,0.1);
+  flex-shrink: 0;
+}
+#ed-form-title {
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--gold-light);
+  font-style: italic;
+}
+
+#ed-form-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201,168,76,0.2) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+#ed-form-body::-webkit-scrollbar { width: 4px; }
+#ed-form-body::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.2); }
+
+.ed-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ed-section-label {
+  font-family: var(--accent-serif);
+  font-style: italic;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(201,168,76,0.12);
+}
+.ed-field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.ed-field label {
+  font-family: var(--accent-serif);
+  font-style: italic;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+}
+.ed-hint { text-transform: none; letter-spacing: 0; color: rgba(201,168,76,0.35); }
+.ed-field input, .ed-field select, .ed-field textarea {
+  background: rgba(201,168,76,0.05);
+  border: 1px solid rgba(201,168,76,0.2);
+  color: var(--parchment);
+  font-family: var(--body-serif);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.ed-field input:focus, .ed-field select:focus, .ed-field textarea:focus {
+  border-color: rgba(201,168,76,0.6);
+}
+.ed-field select option { background: #13100a; }
+.ed-field-row { display: flex; gap: 10px; align-items: flex-end; }
+
+/* Corners grid */
+.ed-corners-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ed-corner-pair {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(201,168,76,0.04);
+  border: 1px solid rgba(201,168,76,0.1);
+  padding: 6px 8px;
+}
+.ed-corner-pair span {
+  font-family: var(--accent-serif);
+  font-size: 9px;
+  color: var(--gold-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  width: 18px;
+  flex-shrink: 0;
+}
+.ed-corner-pair input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(201,168,76,0.2);
+  color: var(--parchment);
+  font-family: var(--body-serif);
+  font-size: 12px;
+  width: 70px;
+  padding: 2px 4px;
+  outline: none;
+}
+.ed-corner-pair input:focus { border-bottom-color: rgba(201,168,76,0.7); }
+
+#ed-form-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0 4px;
+  border-top: 1px solid rgba(201,168,76,0.1);
+  flex-shrink: 0;
+}
+
+/* Pick strip */
+#ed-pick-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(201,168,76,0.05);
+  border: 1px solid rgba(201,168,76,0.15);
+}
+.ed-btn-pick {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-color: rgba(201,168,76,0.4);
+  color: var(--gold-light);
+}
+.ed-btn-pick.picking {
+  background: rgba(201,168,76,0.28);
+  border-color: var(--gold);
+  color: #fff;
+  animation: pick-pulse 1s ease-in-out infinite;
+}
+@keyframes pick-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.4); }
+  50%      { box-shadow: 0 0 0 5px rgba(201,168,76,0); }
+}
+#ed-pick-status {
+  font-family: var(--accent-serif);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--gold);
+  margin-left: 4px;
+}
+
+/* Pick mode — canvas cursor + dimmed overlay */
+body.pick-mode #editor-overlay {
+  pointer-events: none;
+  opacity: 0.15;
+}
+body.pick-mode #panorama-canvas {
+  cursor: crosshair !important;
+}
+
+/* Ghost rect drawn during picking */
+#pick-ghost-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+  overflow: visible;
+}
+#pick-crosshair {
+  pointer-events: none;
+}
+#pick-ghost-poly {
+  fill: rgba(201,168,76,0.12);
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
+#pick-anchor-dot {
+  fill: var(--gold);
+  filter: drop-shadow(0 0 4px rgba(201,168,76,0.8));
+}
+#pick-label {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 11px;
+  fill: var(--gold-light);
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+#pick-hint-box {
+  fill: rgba(10,8,5,0.85);
+}
+
+/* Escape hint banner shown during picking */
+#pick-banner {
+  display: none;
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10,8,5,0.92);
+  border: 1px solid rgba(201,168,76,0.4);
+  color: var(--gold-light);
+  font-family: var(--accent-serif);
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  padding: 8px 22px;
+  z-index: 9999;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+body.pick-mode #pick-banner { display: block; }
+
+#ed-export-textarea {
+  flex: 1;
+  margin: 12px 20px 0;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(201,168,76,0.2);
+  color: rgba(232,211,176,0.85);
+  font-family: 'Courier New', monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  padding: 12px 14px;
+  resize: none;
+  outline: none;
+}
+.ed-field select[multiple] {
+  height: auto;
+  padding: 4px 0;
+}
+.ed-field select[multiple] option {
+  padding: 4px 10px;
+  cursor: pointer;
+}
+#ed-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(201,168,76,0.1);
+  flex-shrink: 0;
+}
+</style>
+
+<!-- External annotations — loaded first so HOTSPOTS and SITE_CONFIG are available.
+     When opened as file:// the browser may block this; the inline fallback below
+     ensures the viewer always has data regardless. -->
+<script src="annotations.js"></script>
+
+<!-- Inline fallback: only runs if annotations.js failed to load (e.g. file://) -->
+<script>
+if (typeof HOTSPOTS === 'undefined') {
+// ── FALLBACK DATA (mirrors annotations.js — edit that file, not this) ──────
+// ═══════════════════════════════════════════════════════
+//  annotations.js — Heritage 360° Viewer · Content File
+//
+//  Edit this file to update all text, hotspot positions,
+//  images, and panel content without touching the viewer.
+//
+//  SITE_CONFIG  → top-bar title, panel header, meta line
+//  HOTSPOTS     → all point and inscription annotations
+// ═══════════════════════════════════════════════════════
+
+// ── Site identity ────────────────────────────────────────
+const SITE_CONFIG = {
+  siteTitle:    "Humor op de muren \u00a0·\u00a0 Digital Archive",
+  siteSubtitle: "Karikaturen op de Antwerpse Academie van schone kunsten",
+  panelLabel:   "Annotated Points of Interest",
+  panelHeading: "Prix de rome",
+  panelMeta:    "23 documented features \u00b7 circa 1904 – 1910",
+  panoramaFile: "theroom.jpg",   // default panorama loaded on startup
+  defaultYaw:   360,               // starting horizontal angle in degrees
+  defaultPitch: 0,               // starting vertical angle in degrees
+  defaultZoom:  90               // starting FOV in degrees (20–120)
+};
+
+// ── Annotations ──────────────────────────────────────────
+//
+//  Point hotspot fields:
+//    id       (string)   unique identifier
+//    pitch    (number)   vertical angle in degrees (+up / -down)
+//    yaw      (number)   horizontal angle in degrees
+//    title    (string)   short label shown in panel + tooltip
+//    date     (string)   date / location line
+//    image    (string)   URL or relative path for the panel thumbnail
+//    content  (string)   HTML body text (bold, em, etc. allowed)
+//    links    (string[]) optional — IDs of related hotspots shown as
+//                        clickable chips at the bottom of the panel entry
+//    zoom     (number)   optional — FOV in degrees (20–120) applied when
+//                        navigating to this hotspot; omit to use default 90°
+//
+//  Inscription hotspot — all of the above except pitch/yaw, plus:
+//    type         "inscription"
+//    corners      [[yaw,pitch], [yaw,pitch], [yaw,pitch], [yaw,pitch]]
+//                 top-left → top-right → bottom-right → bottom-left
+//                 (fly-to centre is derived automatically from corners[0] and corners[2])
+//    transcription  (string[])  one entry per line of the inscription
+//    translation    (string)    English rendering shown below transcription
+// ─────────────────────────────────────────────────────────
+
+const HOTSPOTS = [
+  {
+    id:    "hotspot-1774180683546",
+    title: "A1",
+    date:  "",
+    pitch: -5.2, yaw: 252,
+    zoom: 20,
+    content: `whole coly`,
+  },
+  {
+    id:    "A2",
+    title: "A2",
+    date:  "",
+    pitch: -4.5, yaw: 262.2,
+    zoom: 30,
+    content: ``,
+  },
+  {
+    id:    "A3",
+    title: "A3",
+    date:  "",
+    pitch: -6.1, yaw: 269.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "A4",
+    title: "A4",
+    date:  "",
+    pitch: -3.4, yaw: 276.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "A5",
+    title: "A5",
+    date:  "",
+    pitch: -1.4, yaw: 286.2,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181072377",
+    title: "A6",
+    date:  "",
+    pitch: -1.8, yaw: 296.8,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181136312",
+    title: "A7",
+    date:  "",
+    pitch: 25.1, yaw: 280.4,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181155649",
+    title: "A8",
+    date:  "",
+    pitch: 18.4, yaw: 283.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181184098",
+    title: "A9",
+    date:  "",
+    pitch: 23.8, yaw: 287.8,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181221015",
+    title: "A10",
+    date:  "",
+    pitch: 32.4, yaw: 288.8,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181251139",
+    title: "A11",
+    date:  "",
+    pitch: 26.4, yaw: 295.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181276113",
+    title: "A12",
+    date:  "",
+    pitch: 29.6, yaw: 299.4,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181399647",
+    title: "B1",
+    date:  "",
+    pitch: -6.1, yaw: 305.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181421980",
+    title: "B2",
+    date:  "",
+    pitch: -8.5, yaw: 310.2,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181447148",
+    title: "B3",
+    date:  "",
+    pitch: -7, yaw: 317,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181475873",
+    title: "B4",
+    date:  "",
+    pitch: 9.1, yaw: 310.2,
+    zoom: 30,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181530410",
+    title: "C1",
+    date:  "",
+    pitch: -10.5, yaw: 14,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181546702",
+    title: "C2",
+    date:  "",
+    pitch: -9, yaw: 21.2,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181569461",
+    title: "C3",
+    date:  "",
+    pitch: -8.3, yaw: 26,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181590951",
+    title: "C4",
+    date:  "",
+    pitch: -9.9, yaw: 31.8,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181621709",
+    title: "C5",
+    date:  "",
+    pitch: -5.5, yaw: 36,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181649218",
+    title: "C6",
+    date:  "",
+    pitch: -5.5, yaw: 40,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181681242",
+    title: "C7",
+    date:  "",
+    pitch: -6.7, yaw: 43.8,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181741443",
+    title: "D1",
+    date:  "",
+    pitch: -7.5, yaw: 49.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181771118",
+    title: "D2",
+    date:  "",
+    pitch: -7.6, yaw: 55.2,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181799406",
+    title: "D3",
+    date:  "",
+    pitch: -7.5, yaw: 61.8,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181825639",
+    title: "D4",
+    date:  "",
+    pitch: -9.4, yaw: 71.6,
+    zoom: 35,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181854226",
+    title: "D5",
+    date:  "",
+    pitch: -9.1, yaw: 82,
+    zoom: 35,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181883281",
+    title: "D6",
+    date:  "",
+    pitch: -7.9, yaw: 90.8,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181906301",
+    title: "D7",
+    date:  "",
+    pitch: -3.4, yaw: 108,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181946871",
+    title: "D8",
+    date:  "",
+    pitch: 13.3, yaw: 51,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774181992435",
+    title: "D9",
+    date:  "",
+    pitch: 20.1, yaw: 57.2,
+    zoom: 35,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774182024041",
+    title: "D10",
+    date:  "",
+    pitch: 13.7, yaw: 65.4,
+    zoom: 35,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774182075334",
+    title: "D11",
+    date:  "",
+    pitch: 20.9, yaw: 74.8,
+    zoom: 35,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774182101476",
+    title: "D12",
+    date:  "",
+    pitch: 8.5, yaw: 87.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774182127538",
+    title: "D13",
+    date:  "",
+    pitch: 22.4, yaw: 89.4,
+    zoom: 35,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774182164347",
+    title: "D14",
+    date:  "",
+    pitch: 20.2, yaw: 108.6,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    id:    "hotspot-1774182185642",
+    title: "D15",
+    date:  "",
+    pitch: 21.7, yaw: 117.2,
+    zoom: 20,
+    content: ``,
+  },
+  {
+    type: "inscription",
+    id:    "inscription-1774182291805",
+    title: "T5 Da zal wel kunne zijn",
+    date:  "",
+    corners: [[53.34, 10.33], [61.08, 10.33], [61.08, 6.86], [53.34, 6.86]],
+    zoom: 20,
+    content: ``,
+    transcription: [
+      "Da zal wel kunne zijn"
+    ],
+    translation: "It could be like that"
+  },
+  {
+    type: "inscription",
+    id:    "inscription-1774182436495",
+    title: "T1",
+    date:  "",
+    corners: [[246.22, 11.45], [269.90, 11.45], [269.90, 8.61], [246.22, 8.61]],
+    zoom: 33,
+    content: ``,
+    transcription: [
+      "Gelukkig zijn zij die buien"
+    ],
+    translation: "Happy are those ..."
+  },
+  {
+    type: "inscription",
+    id:    "inscription-1774182579654",
+    title: "T2",
+    date:  "",
+    corners: [[246.83, 8.41], [270.58, 8.41], [270.58, 5.48], [246.83, 5.48]],
+    zoom: 33,
+    content: ``,
+    transcription: [
+
+    ],
+    translation: ""
+  },
+  {
+    type: "inscription",
+    id:    "inscription-1774182632829",
+    title: "T4",
+    date:  "",
+    corners: [[276.69, 12.78], [296.04, 12.78], [296.04, 9.76], [276.69, 9.76]],
+    zoom: 27,
+    content: ``,
+    transcription: [
+      "Jury salutam"
+    ],
+    translation: ""
+  },
+  {
+    type: "inscription",
+    id:    "inscription-1774182685391",
+    title: "T4",
+    date:  "",
+    corners: [[284.25, 9.76], [302.22, 9.76], [302.22, 6.67], [284.25, 6.67]],
+    zoom: 25,
+    content: ``,
+    transcription: [
+
+    ],
+    translation: ""
+  }
+];
+} // end fallback
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  HOTSPOT EDITOR
+// ═══════════════════════════════════════════════════════
+
+// ── Open / Close ────────────────────────────────────────
+document.getElementById('btn-editor').addEventListener('click', () => {
+  document.getElementById('editor-overlay').classList.add('open');
+  edShowList();
+});
+document.getElementById('ed-btn-close').addEventListener('click', () => {
+  document.getElementById('editor-overlay').classList.remove('open');
+});
+// Close on overlay backdrop click
+document.getElementById('editor-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('editor-overlay'))
+    document.getElementById('editor-overlay').classList.remove('open');
+});
+
+// ── View switching ───────────────────────────────────────
+function edShowList() {
+  document.getElementById('ed-list-view').style.display  = 'flex';
+  document.getElementById('ed-form-view').style.display  = 'none';
+  document.getElementById('ed-export-view').style.display = 'none';
+  edRefreshList();
+}
+function edShowForm() {
+  document.getElementById('ed-list-view').style.display  = 'none';
+  document.getElementById('ed-form-view').style.display  = 'flex';
+  document.getElementById('ed-export-view').style.display = 'none';
+}
+function edShowExport() {
+  document.getElementById('ed-list-view').style.display  = 'none';
+  document.getElementById('ed-form-view').style.display  = 'none';
+  document.getElementById('ed-export-view').style.display = 'flex';
+  edBuildExportText();
+}
+
+// ── Live view coords in toolbar ─────────────────────────
+function edUpdateCoords() {
+  if (!document.getElementById('editor-overlay').classList.contains('open')) return;
+  document.getElementById('ed-cur-yaw').textContent   = yaw.toFixed(1);
+  document.getElementById('ed-cur-pitch').textContent = pitch.toFixed(1);
+  requestAnimationFrame(edUpdateCoords);
+}
+document.getElementById('btn-editor').addEventListener('click', edUpdateCoords);
+
+// ── List rendering ───────────────────────────────────────
+function edRefreshList() {
+  const list = document.getElementById('ed-hotspot-list');
+  list.innerHTML = '';
+  HOTSPOTS.forEach((hs, i) => {
+    const row = document.createElement('div');
+    row.className = 'ed-list-item';
+    const centre = hs.type === 'inscription' && hs.corners
+      ? { yaw: (hs.corners[0][0] + hs.corners[2][0]) / 2, pitch: (hs.corners[0][1] + hs.corners[2][1]) / 2 }
+      : { yaw: hs.yaw, pitch: hs.pitch };
+    const posText = hs.type === 'inscription'
+      ? `rect · centre ${centre.yaw.toFixed(1)}° / ${centre.pitch.toFixed(1)}°`
+      : `yaw ${hs.yaw}° pitch ${hs.pitch}°`;
+    row.innerHTML = `
+      <div class="ed-list-num">${i + 1}</div>
+      <div class="ed-list-type">${hs.type === 'inscription' ? 'inscr.' : 'point'}</div>
+      <div class="ed-list-title">${hs.title}</div>
+      <div class="ed-list-pos">${posText}</div>
+      <button class="ed-btn ed-list-edit" data-idx="${i}">Edit</button>`;
+    row.querySelector('.ed-list-edit').addEventListener('click', () => edEditHotspot(i));
+    list.appendChild(row);
+  });
+}
+
+// ── Form: populate for editing ───────────────────────────
+let edEditingIdx = -1; // -1 = new
+
+function edEditHotspot(idx) {
+  edEditingIdx = idx;
+  const hs = HOTSPOTS[idx];
+  document.getElementById('ed-form-title').textContent = `Editing: ${hs.title}`;
+  document.getElementById('ed-btn-delete').style.display = '';
+  edPopulateForm(hs);
+  edShowForm();
+}
+
+function edNewHotspot(type) {
+  edEditingIdx = -1;
+  document.getElementById('ed-form-title').textContent = `New ${type === 'inscription' ? 'inscription' : 'point'} hotspot`;
+  document.getElementById('ed-btn-delete').style.display = 'none';
+  const defaults = type === 'inscription'
+    ? {
+        id: 'inscription-' + Date.now(),
+        type: 'inscription',
+        title: '', date: '', image: '', content: '',
+        pitch: Math.round(pitch * 10) / 10,
+        yaw:   Math.round(((yaw % 360) + 360) % 360 * 10) / 10,
+        corners: [
+          [Math.round((yaw - 10) * 10) / 10, Math.round((pitch + 5) * 10) / 10],
+          [Math.round((yaw + 10) * 10) / 10, Math.round((pitch + 5) * 10) / 10],
+          [Math.round((yaw + 10) * 10) / 10, Math.round((pitch - 5) * 10) / 10],
+          [Math.round((yaw - 10) * 10) / 10, Math.round((pitch - 5) * 10) / 10]
+        ],
+        transcription: [], translation: ''
+      }
+    : {
+        id: 'hotspot-' + Date.now(),
+        type: 'point',
+        title: '', date: '', image: '', content: '',
+        pitch: Math.round(pitch * 10) / 10,
+        yaw:   Math.round(((yaw % 360) + 360) % 360 * 10) / 10
+      };
+  edPopulateForm(defaults);
+  edShowForm();
+}
+
+function edPopulateForm(hs) {
+  const type = hs.type === 'inscription' ? 'inscription' : 'point';
+  document.getElementById('ef-type').value   = type;
+  document.getElementById('ef-id').value     = hs.id    || '';
+  document.getElementById('ef-title').value  = hs.title || '';
+  document.getElementById('ef-date').value   = hs.date  || '';
+  document.getElementById('ef-image').value  = hs.image || '';
+  document.getElementById('ef-zoom').value   = hs.zoom  != null ? hs.zoom : '';
+  document.getElementById('ef-content').value = hs.content || '';
+
+  // Build the links multi-select — all other hotspots
+  const sel = document.getElementById('ef-links');
+  sel.innerHTML = '';
+  HOTSPOTS.forEach(other => {
+    if (other.id === hs.id) return; // exclude self
+    const opt = document.createElement('option');
+    opt.value = other.id;
+    const typeTag = other.type === 'inscription' ? ' [inscr.]' : '';
+    opt.textContent = other.title + typeTag;
+    if (hs.links && hs.links.includes(other.id)) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  if (type === 'point') {
+    document.getElementById('ef-yaw').value   = hs.yaw   ?? 0;
+    document.getElementById('ef-pitch').value = hs.pitch ?? 0;
+    document.getElementById('ed-section-point').style.display       = '';
+    document.getElementById('ed-section-inscription').style.display = 'none';
+  } else {
+    const corners = hs.corners || [[0,0],[0,0],[0,0],[0,0]];
+    document.querySelectorAll('.ed-corner-pair').forEach((pair, ci) => {
+      pair.querySelector('.ec-yaw').value   = corners[ci] ? corners[ci][0] : 0;
+      pair.querySelector('.ec-pitch').value = corners[ci] ? corners[ci][1] : 0;
+    });
+    document.getElementById('ef-transcription').value =
+      (hs.transcription || []).join('\n');
+    document.getElementById('ef-translation').value = hs.translation || '';
+    document.getElementById('ed-section-point').style.display       = 'none';
+    document.getElementById('ed-section-inscription').style.display = '';
+  }
+
+  // Type switcher shows/hides sections
+  document.getElementById('ef-type').onchange = function() {
+    const isInscr = this.value === 'inscription';
+    document.getElementById('ed-section-point').style.display       = isInscr ? 'none' : '';
+    document.getElementById('ed-section-inscription').style.display = isInscr ? '' : 'none';
+  };
+}
+
+// ── Form: read values back ────────────────────────────────
+function edReadForm() {
+  const type = document.getElementById('ef-type').value;
+  const hs = {
+    id:      document.getElementById('ef-id').value.trim().replace(/\s+/g, '-'),
+    title:   document.getElementById('ef-title').value.trim(),
+    date:    document.getElementById('ef-date').value.trim(),
+    image:   document.getElementById('ef-image').value.trim(),
+    content: document.getElementById('ef-content').value.trim(),
+    links:   Array.from(document.getElementById('ef-links').selectedOptions).map(o => o.value),
+    zoom:    document.getElementById('ef-zoom').value !== ''
+               ? Math.max(20, Math.min(120, parseFloat(document.getElementById('ef-zoom').value)))
+               : undefined
+  };
+  if (type === 'inscription') {
+    hs.type  = 'inscription';
+    const corners = [];
+    document.querySelectorAll('.ed-corner-pair').forEach(pair => {
+      corners.push([
+        parseFloat(pair.querySelector('.ec-yaw').value)   || 0,
+        parseFloat(pair.querySelector('.ec-pitch').value) || 0
+      ]);
+    });
+    hs.corners = corners;
+    // Centre derived from TL (corners[0]) and BR (corners[2]) — not stored separately
+    hs.yaw   = (corners[0][0] + corners[2][0]) / 2;
+    hs.pitch = (corners[0][1] + corners[2][1]) / 2;
+    hs.transcription = document.getElementById('ef-transcription').value
+      .split('\n').map(l => l.trim()).filter(Boolean);
+    hs.translation = document.getElementById('ef-translation').value.trim();
+  } else {
+    hs.yaw   = parseFloat(document.getElementById('ef-yaw').value)   || 0;
+    hs.pitch = parseFloat(document.getElementById('ef-pitch').value) || 0;
+  }
+  return hs;
+}
+
+// ── Save / Delete ────────────────────────────────────────
+document.getElementById('ed-btn-save').addEventListener('click', () => {
+  const hs = edReadForm();
+  if (!hs.id)    { alert('Vul een ID in.'); return; }
+  if (!hs.title) { alert('Vul een titel in.'); return; }
+
+  // Check for duplicate ID (ignore self when editing)
+  const dupIdx = HOTSPOTS.findIndex(h => h.id === hs.id);
+  if (dupIdx !== -1 && dupIdx !== edEditingIdx) {
+    alert(`ID "${hs.id}" is al in gebruik door markering #${dupIdx + 1}. Kies een uniek ID.`);
+    return;
+  }
+
+  if (edEditingIdx === -1) {
+    HOTSPOTS.push(hs);
+  } else {
+    HOTSPOTS[edEditingIdx] = hs;
+  }
+
+  edRebuildViewer();
+  edShowList();
+});
+
+document.getElementById('ed-btn-delete').addEventListener('click', () => {
+  if (edEditingIdx < 0) return;
+  const hs = HOTSPOTS[edEditingIdx];
+  if (!confirm(`Verwijder "${hs.title}"?`)) return;
+  HOTSPOTS.splice(edEditingIdx, 1);
+  edRebuildViewer();
+  edShowList();
+});
+
+// ── Capture current view ─────────────────────────────────
+// ── Capture current view for point ───────────────────────
+document.getElementById('ef-capture-point').addEventListener('click', () => {
+  document.getElementById('ef-yaw').value   = (((yaw % 360) + 360) % 360).toFixed(1);
+  document.getElementById('ef-pitch').value = pitch.toFixed(1);
+});
+
+document.getElementById('ef-capture-zoom').addEventListener('click', () => {
+  document.getElementById('ef-zoom').value = Math.round(fovH);
+});
+
+// ═══════════════════════════════════════════════════════
+//  INTERACTIVE CORNER PICKER
+// ═══════════════════════════════════════════════════════
+// State
+let pickMode   = null; // null | 'tl' | 'br'
+let pickAnchor = null; // { yaw, pitch } of already-placed corner
+
+// Unproject screen pixel → spherical { yaw, pitch } in degrees.
+// Inverse of projectPoint() — reconstructs the world ray from NDC.
+function unprojectPoint(screenX, screenY) {
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+
+  // Reconstruct camera-space ray from screen pixel (same as fragment shader entry)
+  const ndcX =  (screenX / W) * 2 - 1;   // -1 (left) … +1 (right)
+  const ndcY = -((screenY / H) * 2 - 1); // -1 (bottom) … +1 (top)
+
+  const tanHalfFovH = Math.tan((fovH * Math.PI / 180) * 0.5);
+  const aspect = H / W;
+
+  // Camera-space ray (cx2, cy2, cz2) — matches projectPoint's output space
+  const cx2 = ndcX * tanHalfFovH;
+  const cy2 = ndcY * tanHalfFovH * aspect;
+  const cz2 = 1.0;
+
+  // ── Invert pitch ──
+  // Forward pitch step in projectPoint:
+  //   cy2 =  cy1·cos(pitch) − cz1·sin(pitch)
+  //   cz2 =  cy1·sin(pitch) + cz1·cos(pitch)
+  // Inverse (transpose):
+  //   cy1 =  cy2·cos(pitch) + cz2·sin(pitch)
+  //   cz1 = −cy2·sin(pitch) + cz2·cos(pitch)
+  const camPitch = pitch * Math.PI / 180;
+  const cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
+  const cy1 =  cy2 * cosP + cz2 * sinP;
+  const cz1 = -cy2 * sinP + cz2 * cosP;
+  const cx1 = cx2;
+
+  // ── Invert yaw (projectPoint applies R_y(-yaw) as first step) ──
+  // Forward:  cx1 =  wx·cos(-yaw) + wz·sin(-yaw)  →  wx·cosY - wz·sinY
+  //           cz1 = -wx·sin(-yaw) + wz·cos(-yaw)  →  wx·sinY + wz·cosY
+  // Inverse (transpose, i.e. rotate by +yaw):
+  //           wx  =  cx1·cosY + cz1·sinY
+  //           wz  = -cx1·sinY + cz1·cosY
+  const camYaw = yaw * Math.PI / 180;
+  const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
+  const wx =  cx1 * cosY + cz1 * sinY;
+  const wz = -cx1 * sinY + cz1 * cosY;
+  const wy = cy1;
+
+  const len = Math.sqrt(wx*wx + wy*wy + wz*wz);
+  const nx = wx/len, ny = wy/len, nz = wz/len;
+
+  const lon = Math.atan2(nx, nz) * 180 / Math.PI;
+  const lat = Math.asin(Math.max(-1, Math.min(1, ny))) * 180 / Math.PI;
+  return { yaw: lon, pitch: lat };
+}
+
+function enterPickMode(which) {
+  pickMode = which;
+  pickAnchor = null;
+  document.body.classList.add('pick-mode');
+  document.getElementById('editor-overlay').style.pointerEvents = 'none';
+  document.getElementById('pick-banner').textContent =
+    which === 'tl'
+      ? 'Klik op de linkerbovenhoek van de inscriptie · Esc om te annuleren'
+      : 'Klik op de rechteronderhoek van de inscriptie · Esc om te annuleren';
+
+  // Highlight active button
+  document.getElementById('ef-pick-tl').classList.toggle('picking', which === 'tl');
+  document.getElementById('ef-pick-br').classList.toggle('picking', which === 'br');
+  document.getElementById('ed-pick-status').textContent =
+    which === 'tl' ? '→ klik linksboven op het panorama' : '→ klik rechtsonder op het panorama';
+
+  // If we're picking BR and TL already set, show anchor dot
+  if (which === 'br') {
+    const tlYaw   = parseFloat(document.querySelectorAll('.ed-corner-pair')[0].querySelector('.ec-yaw').value);
+    const tlPitch = parseFloat(document.querySelectorAll('.ed-corner-pair')[0].querySelector('.ec-pitch').value);
+    if (!isNaN(tlYaw)) pickAnchor = { yaw: tlYaw, pitch: tlPitch };
+  }
+  if (which === 'tl') {
+    const brYaw   = parseFloat(document.querySelectorAll('.ed-corner-pair')[2].querySelector('.ec-yaw').value);
+    const brPitch = parseFloat(document.querySelectorAll('.ed-corner-pair')[2].querySelector('.ec-pitch').value);
+    if (!isNaN(brYaw)) pickAnchor = { yaw: brYaw, pitch: brPitch };
+  }
+}
+
+function exitPickMode() {
+  pickMode = null;
+  pickAnchor = null;
+  document.body.classList.remove('pick-mode');
+  document.getElementById('editor-overlay').style.pointerEvents = '';
+  document.getElementById('pick-banner').textContent = '';
+  document.getElementById('ef-pick-tl').classList.remove('picking');
+  document.getElementById('ef-pick-br').classList.remove('picking');
+  document.getElementById('ed-pick-status').textContent = '';
+  // Hide ghost elements
+  document.getElementById('pick-ghost-poly').style.display = 'none';
+  document.getElementById('pick-anchor-dot').style.display = 'none';
+  document.getElementById('pick-crosshair').style.display = 'none';
+  document.getElementById('pick-hint-box').setAttribute('width', 0);
+  document.getElementById('pick-label').textContent = '';
+}
+
+// Fill all 4 corner inputs from TL and BR spherical coords
+function applyCornersFromTLBR(tl, br) {
+  const pairs = document.querySelectorAll('.ed-corner-pair');
+  const corners = [
+    [tl.yaw, tl.pitch],
+    [br.yaw, tl.pitch],
+    [br.yaw, br.pitch],
+    [tl.yaw, br.pitch]
+  ];
+  corners.forEach(([cy, cp], i) => {
+    pairs[i].querySelector('.ec-yaw').value   = cy.toFixed(2);
+    pairs[i].querySelector('.ec-pitch').value = cp.toFixed(2);
+  });
+}
+
+// Escape cancels pick mode
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && pickMode) {
+    exitPickMode();
+    document.getElementById('editor-overlay').classList.add('open');
+  }
+});
+
+document.getElementById('ef-pick-tl').addEventListener('click', () => {
+  document.getElementById('editor-overlay').classList.remove('open');
+  enterPickMode('tl');
+});
+document.getElementById('ef-pick-br').addEventListener('click', () => {
+  document.getElementById('editor-overlay').classList.remove('open');
+  enterPickMode('br');
+});
+
+// ── Navigation ───────────────────────────────────────────
+document.getElementById('ed-btn-back').addEventListener('click', edShowList);
+document.getElementById('ed-btn-add-point').addEventListener('click', () => edNewHotspot('point'));
+document.getElementById('ed-btn-add-inscription').addEventListener('click', () => edNewHotspot('inscription'));
+
+// ── Rebuild live viewer after edits ─────────────────────
+function edRebuildViewer() {
+  // Clear existing DOM hotspots
+  document.getElementById('hotspot-layer').innerHTML = '';
+  document.getElementById('rect-svg').innerHTML = '';
+  // Rebuild
+  buildHotspots();
+  buildPanel();
+  // Reset active if deleted
+  if (HOTSPOTS.length > 0) {
+    const still = HOTSPOTS.find(h => h.id === activeId);
+    setActive(still ? still.id : HOTSPOTS[0].id);
+  }
+}
+
+// ── Export ───────────────────────────────────────────────
+document.getElementById('ed-btn-export').addEventListener('click', edShowExport);
+document.getElementById('ed-btn-export-back').addEventListener('click', edShowList);
+
+function jsStr(s) {
+  // Escape backticks and backslashes for template literal
+  return s ? s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${') : '';
+}
+
+function edBuildExportText() {
+  const cfg = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
+  let out = '';
+
+  out += `// ═══════════════════════════════════════════════════════\n`;
+  out += `//  annotations.js — Heritage 360° Viewer · Content File\n`;
+  out += `//  Gegenereerd door de ingebouwde editor.\n`;
+  out += `// ═══════════════════════════════════════════════════════\n\n`;
+
+  out += `const SITE_CONFIG = {\n`;
+  out += `  siteTitle:    ${JSON.stringify(cfg.siteTitle    || '')},\n`;
+  out += `  siteSubtitle: ${JSON.stringify(cfg.siteSubtitle || '')},\n`;
+  out += `  panelLabel:   ${JSON.stringify(cfg.panelLabel   || '')},\n`;
+  out += `  panelHeading: ${JSON.stringify(cfg.panelHeading || '')},\n`;
+  out += `  panelMeta:    ${JSON.stringify(cfg.panelMeta    || '')},\n`;
+  out += `  panoramaFile: ${JSON.stringify(cfg.panoramaFile || 'theroom.jpg')},\n`;
+  out += `  defaultYaw:   ${cfg.defaultYaw   ?? 0},\n`;
+  out += `  defaultPitch: ${cfg.defaultPitch ?? 0},\n`;
+  out += `  defaultZoom:  ${cfg.defaultZoom  ?? 90}\n`;
+  out += `};\n\n`;
+
+  out += `const HOTSPOTS = [\n`;
+  HOTSPOTS.forEach((hs, i) => {
+    const comma = i < HOTSPOTS.length - 1 ? ',' : '';
+    out += `  {\n`;
+    if (hs.type) out += `    type: ${JSON.stringify(hs.type)},\n`;
+    out += `    id:    ${JSON.stringify(hs.id)},\n`;
+    out += `    title: ${JSON.stringify(hs.title)},\n`;
+    out += `    date:  ${JSON.stringify(hs.date)},\n`;
+    // For inscriptions, pitch/yaw are derived from corners — omit from export
+    if (hs.type !== 'inscription') {
+      out += `    pitch: ${hs.pitch}, yaw: ${hs.yaw},\n`;
+    }
+    if (hs.type === 'inscription' && hs.corners) {
+      const cStr = hs.corners.map(c => `[${c[0]}, ${c[1]}]`).join(', ');
+      out += `    corners: [${cStr}],\n`;
+    }
+    if (hs.image) out += `    image: ${JSON.stringify(hs.image)},\n`;
+    if (hs.zoom  != null) out += `    zoom: ${hs.zoom},\n`;
+    out += `    content: \`${jsStr(hs.content)}\`,\n`;
+    if (hs.links && hs.links.length > 0) {
+      out += `    links: ${JSON.stringify(hs.links)},\n`;
+    }
+    if (hs.type === 'inscription') {
+      const tLines = (hs.transcription || []).map(l => `      ${JSON.stringify(l)}`).join(',\n');
+      out += `    transcription: [\n${tLines}\n    ],\n`;
+      out += `    translation: ${JSON.stringify(hs.translation || '')}\n`;
+    }
+    out += `  }${comma}\n`;
+  });
+  out += `];\n`;
+
+  document.getElementById('ed-export-textarea').value = out;
+}
+
+document.getElementById('ed-btn-copy').addEventListener('click', () => {
+  const ta = document.getElementById('ed-export-textarea');
+  ta.select();
+  ta.setSelectionRange(0, 999999);
+  navigator.clipboard.writeText(ta.value).catch(() => document.execCommand('copy'));
+  const confirm = document.getElementById('ed-copy-confirm');
+  confirm.style.opacity = '1';
+  setTimeout(() => confirm.style.opacity = '0', 2000);
+});
+</script>
+<script>
+// ═══════════════════════════════════════════════════════
+//  WEBGL PANORAMA RENDERER
+//  GPU equirectangular reprojection — zero CPU pixel work.
+//  Hotspot screen positions use the exact same 3D math as
+//  the vertex/fragment shaders so they are pixel-perfect.
+// ═══════════════════════════════════════════════════════
+const canvas = document.getElementById('panorama-canvas');
+
+// ── Picker canvas listeners (need canvas to exist first) ──
+canvas.addEventListener('mousemove', e => {
+  if (!pickMode) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+
+  const ch = document.getElementById('pick-crosshair');
+  ch.style.display = '';
+  document.getElementById('pch-h').setAttribute('x1', 0);  document.getElementById('pch-h').setAttribute('y1', my);
+  document.getElementById('pch-h').setAttribute('x2', W);  document.getElementById('pch-h').setAttribute('y2', my);
+  document.getElementById('pch-v').setAttribute('x1', mx); document.getElementById('pch-v').setAttribute('y1', 0);
+  document.getElementById('pch-v').setAttribute('x2', mx); document.getElementById('pch-v').setAttribute('y2', H);
+
+  const sp = unprojectPoint(mx, my);
+  const lbl  = document.getElementById('pick-label');
+  const lbox = document.getElementById('pick-hint-box');
+  const txt = 'yaw ' + sp.yaw.toFixed(1) + '°  pitch ' + sp.pitch.toFixed(1) + '°';
+  lbl.textContent = txt;
+  const lx = Math.min(mx + 12, W - 170), ly = my - 22;
+  const lw = txt.length * 6.5 + 16, lh = 18;
+  lbox.setAttribute('x', lx - 4); lbox.setAttribute('y', ly - lh/2 - 2);
+  lbox.setAttribute('width', lw); lbox.setAttribute('height', lh);
+  lbl.setAttribute('x', lx); lbl.setAttribute('y', ly);
+
+  const ghost = document.getElementById('pick-ghost-poly');
+  const dot   = document.getElementById('pick-anchor-dot');
+  if (pickAnchor) {
+    const ap = projectPoint(pickAnchor.yaw, pickAnchor.pitch);
+    dot.style.display = '';
+    dot.setAttribute('cx', ap.x); dot.setAttribute('cy', ap.y);
+    const tl = pickMode === 'br' ? pickAnchor : sp;
+    const br = pickMode === 'br' ? sp : pickAnchor;
+    const pts = [[tl.yaw,tl.pitch],[br.yaw,tl.pitch],[br.yaw,br.pitch],[tl.yaw,br.pitch]]
+      .map(([cy,cp]) => projectPoint(cy, cp));
+    if (!pts.some(p => p.behind)) {
+      ghost.style.display = '';
+      ghost.setAttribute('points', pts.map(p => p.x.toFixed(1)+','+p.y.toFixed(1)).join(' '));
+    } else { ghost.style.display = 'none'; }
+  } else {
+    dot.style.display = 'none';
+    ghost.style.display = 'none';
+  }
+});
+
+canvas.addEventListener('click', e => {
+  if (!pickMode) return;
+  const rect = canvas.getBoundingClientRect();
+  const sp = unprojectPoint(e.clientX - rect.left, e.clientY - rect.top);
+  const norm = v => (((v % 360) + 360) % 360);
+  const captured = { yaw: norm(sp.yaw), pitch: sp.pitch };
+  const pairs = document.querySelectorAll('.ed-corner-pair');
+
+  let tl = null, br = null;
+
+  if (pickMode === 'tl') {
+    pairs[0].querySelector('.ec-yaw').value   = captured.yaw.toFixed(2);
+    pairs[0].querySelector('.ec-pitch').value = captured.pitch.toFixed(2);
+    const brY = parseFloat(pairs[2].querySelector('.ec-yaw').value);
+    const brP = parseFloat(pairs[2].querySelector('.ec-pitch').value);
+    if (!isNaN(brY) && !isNaN(brP)) {
+      tl = captured; br = { yaw: norm(brY), pitch: brP };
+      applyCornersFromTLBR(tl, br);
+    }
+  } else {
+    pairs[2].querySelector('.ec-yaw').value   = captured.yaw.toFixed(2);
+    pairs[2].querySelector('.ec-pitch').value = captured.pitch.toFixed(2);
+    const tlY = parseFloat(pairs[0].querySelector('.ec-yaw').value);
+    const tlP = parseFloat(pairs[0].querySelector('.ec-pitch').value);
+    if (!isNaN(tlY) && !isNaN(tlP)) {
+      tl = { yaw: norm(tlY), pitch: tlP }; br = captured;
+      applyCornersFromTLBR(tl, br);
+    }
+  }
+
+  // Auto-zoom: fit the rectangle with padding when both corners are known
+  if (tl && br) {
+    const dyaw   = Math.abs(br.yaw - tl.yaw);   // angular width  (degrees)
+    const dpitch = Math.abs(br.pitch - tl.pitch); // angular height (degrees)
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    const aspect = H / W;
+    // Required FOV to show full span with 40% padding on the larger axis
+    const PADDING = 1.4;
+    const fovFromW = dyaw   * PADDING;
+    const fovFromH = (dpitch / aspect) * PADDING;
+    const idealFov = Math.max(fovFromW, fovFromH);
+    const clampedFov = Math.round(Math.max(FOV_MIN, Math.min(FOV_MAX, idealFov)));
+    document.getElementById('ef-zoom').value = clampedFov;
+    // Also set centre and apply zoom live so the user can see the result
+    targetFovH = clampedFov;
+  }
+
+  exitPickMode();
+  document.getElementById('editor-overlay').classList.add('open');
+});
+
+canvas.addEventListener('mouseleave', () => {
+  if (!pickMode) return;
+  document.getElementById('pick-crosshair').style.display = 'none';
+  document.getElementById('pick-hint-box').setAttribute('width', 0);
+  document.getElementById('pick-label').textContent = '';
+});
+
+// ── State ────────────────────────────────────────────
+let yaw = 0, pitch = 0;
+let targetYaw = 0, targetPitch = 0;
+let isDragging = false;
+let lastX = 0, lastY = 0;
+let autoTour = false, autoTourIndex = 0, autoTourTimer = null;
+let fovH = 90, targetFovH = 90;
+const FOV_MIN = 20, FOV_MAX = 120;
+
+// Home swing — slow ease-in-out yaw oscillation when at home position
+let homeSwing = false;
+let homeSwingStart = 0;
+const HOME_SWING_YAW_A = 290;  // degrees — left bound (200 + 90)
+const HOME_SWING_YAW_B = 435;  // degrees — right bound (345 + 90)
+const HOME_SWING_PERIOD = 40000; // ms per full back-and-forth
+
+// ── Pitch limit (FOV-aware, ceiling/floor never reachable) ──
+// vFOV is derived via atan(tan(hFOV/2) * aspect) — correct tangent projection.
+// A linear multiply of hFOV*aspect is wrong and lets you overshoot the poles.
+function pitchLimit() {
+  const aspect = canvas.offsetHeight / Math.max(canvas.offsetWidth, 1);
+  const halfVFovRad = Math.atan(Math.tan((fovH * Math.PI / 180) * 0.5) * aspect);
+  const halfVFovDeg = halfVFovRad * 180 / Math.PI;
+  return Math.min(85, 90 - halfVFovDeg - 3); // 3° margin — edge never reaches pole
+}
+function clampPitch(p) {
+  const lim = pitchLimit();
+  return Math.max(-lim, Math.min(lim, p));
+}
+
+// ── WebGL setup ──────────────────────────────────────
+const gl = canvas.getContext('webgl', { antialias: false, alpha: false });
+let glReady = false;
+let glTexture = null;
+
+const VS = `
+  attribute vec2 a_pos;
+  varying vec2 v_uv;
+  void main() {
+    v_uv = a_pos;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+  }
+`;
+
+// Fragment shader: for each screen pixel reconstruct a 3-D ray,
+// rotate by yaw+pitch, then sample the equirectangular texture.
+const FS = `
+  precision mediump float;
+  varying vec2 v_uv;
+  uniform sampler2D u_tex;
+  uniform float u_yaw;    // radians
+  uniform float u_pitch;  // radians
+  uniform float u_tanHalfFovH;
+  uniform float u_aspect; // H/W
+
+  const float PI = 3.14159265358979;
+
+  void main() {
+    // Ray in camera space (tangent projection)
+    float rx = v_uv.x * u_tanHalfFovH;
+    float ry = v_uv.y * u_tanHalfFovH * u_aspect;
+    float rz = 1.0;
+
+    // Rotate by pitch (X-axis)
+    float cosP = cos(u_pitch), sinP = sin(u_pitch);
+    float ry2 =  ry * cosP - rz * sinP;
+    float rz2 =  ry * sinP + rz * cosP;
+
+    // Rotate by yaw (Y-axis)
+    float cosY = cos(u_yaw), sinY = sin(u_yaw);
+    float rx3 =  rx * cosY + rz2 * sinY;
+    float rz3 = -rx * sinY + rz2 * cosY;
+    float ry3 = ry2;
+
+    // Normalise
+    float len = sqrt(rx3*rx3 + ry3*ry3 + rz3*rz3);
+    vec3 n = vec3(rx3, ry3, rz3) / len;
+
+    // Equirectangular UV
+    float lon = atan(n.x, n.z);
+    float lat = asin(clamp(n.y, -1.0, 1.0));
+    float u   = lon / (2.0 * PI) + 0.5;
+    float v   = 0.5 - lat / PI;
+
+    gl_FragColor = texture2D(u_tex, vec2(u, v));
+  }
+`;
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+let glProgram, uYaw, uPitch, uTanHalfFovH, uAspect;
+
+function initGL() {
+  if (!gl) { console.warn('WebGL unavailable — falling back to 2D canvas.'); return; }
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER,   VS));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  glProgram = prog;
+  gl.useProgram(prog);
+
+  // Full-screen quad
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1,-1,  1,-1,  -1,1,
+     1,-1,  1, 1,  -1,1
+  ]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, 'a_pos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  uYaw         = gl.getUniformLocation(prog, 'u_yaw');
+  uPitch       = gl.getUniformLocation(prog, 'u_pitch');
+  uTanHalfFovH = gl.getUniformLocation(prog, 'u_tanHalfFovH');
+  uAspect      = gl.getUniformLocation(prog, 'u_aspect');
+  gl.uniform1i(gl.getUniformLocation(prog, 'u_tex'), 0);
+
+  glReady = true;
+}
+
+function uploadTexture(img) {
+  if (!gl) return;
+
+  const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  let w = img.naturalWidth  || img.width;
+  let h = img.naturalHeight || img.height;
+  const needsScale = w > maxTex || h > maxTex;
+
+  let source = img;
+
+  if (needsScale) {
+    // Must scale — use offscreen canvas
+    const scale = maxTex / Math.max(w, h);
+    w = Math.floor(w * scale);
+    h = Math.floor(h * scale);
+    try {
+      const oc = document.createElement('canvas');
+      oc.width = w; oc.height = h;
+      oc.getContext('2d').drawImage(img, 0, 0, w, h);
+      source = oc;
+    } catch (e) {
+      // Tainted canvas (local file on mobile) — upload img directly at original size
+      // and clamp w/h back for mipmap check
+      source = img;
+      w = img.naturalWidth || img.width;
+      h = img.naturalHeight || img.height;
+    }
+  }
+
+  if (glTexture) gl.deleteTexture(glTexture);
+  glTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, glTexture);
+  try {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  } catch (e) {
+    // Last resort: try uploading the raw image element
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  }
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  if (isPowerOf2(w) && isPowerOf2(h)) {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+  } else {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  }
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+}
+
+function isPowerOf2(v) { return v > 0 && (v & (v - 1)) === 0; }
+
+// ── Fallback renderer (no panorama loaded) ───────────
+// Uses WebGL to draw a plain dark gradient — avoids 2D/WebGL context conflict.
+function drawFallback() {
+  if (!gl || !glReady) return;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.04, 0.03, 0.02, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+}
+
+// ── Panorama image load ──────────────────────────────
+let panoReady = false;
+const panoImg = new Image();
+
+function loadPanoSrc(src) {
+  panoReady = false;
+  panoImg.onload = () => {
+    uploadTexture(panoImg);
+    panoReady = true;
+  };
+  panoImg.onerror = () => console.warn('Panorama image failed to load.');
+  // Do NOT set crossOrigin for local/same-origin files — causes CORS failure
+  panoImg.src = src;
+}
+
+// Load default panorama from SITE_CONFIG
+loadPanoSrc((typeof SITE_CONFIG !== 'undefined' && SITE_CONFIG.panoramaFile) || 'theroom.jpg');
+
+// ── Canvas resize ────────────────────────────────────
+function resizeCanvas() {
+  // Cap DPR at 2 — mobile at 3× DPR creates huge textures that stall the GPU
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width  = canvas.offsetWidth  * dpr;
+  canvas.height = canvas.offsetHeight * dpr;
+  if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+// ── Draw ─────────────────────────────────────────────
+function drawPanorama() {
+  if (!panoReady || !glReady || !glTexture) {
+    drawFallback();
+    return;
+  }
+  const W = canvas.width, H = canvas.height;
+  const tanHalfFovH = Math.tan((fovH * Math.PI / 180) * 0.5);
+  gl.viewport(0, 0, W, H);
+  gl.uniform1f(uYaw,         yaw   * Math.PI / 180);
+  gl.uniform1f(uPitch,      -pitch * Math.PI / 180);  // negate: down-drag = look down
+  gl.uniform1f(uTanHalfFovH, tanHalfFovH);
+  gl.uniform1f(uAspect,      H / W);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+// ═══════════════════════════════════════════════════════
+//  ANIMATION LOOP
+// ═══════════════════════════════════════════════════════
+function tick() {
+  // Home swing — ease-in-out oscillation between HOME_SWING_YAW_A and B
+  if (homeSwing) {
+    const t = ((performance.now() - homeSwingStart) % HOME_SWING_PERIOD) / HOME_SWING_PERIOD;
+    const ease = (1 - Math.cos(t * 2 * Math.PI)) / 2;
+    targetYaw = HOME_SWING_YAW_A + ease * (HOME_SWING_YAW_B - HOME_SWING_YAW_A);
+  }
+
+  const prevYaw   = yaw,   prevPitch = pitch;
+  const prevFovH  = fovH;
+
+  fovH        += (targetFovH   - fovH)   * 0.1;
+  targetPitch  = clampPitch(targetPitch);
+  yaw         += (targetYaw   - yaw)    * 0.08;
+  pitch       += (targetPitch - pitch)  * 0.08;
+  pitch        = clampPitch(pitch);
+
+  // Skip GPU draw when view has converged — saves mobile battery
+  const moving = homeSwing
+    || Math.abs(yaw - prevYaw) > 0.005
+    || Math.abs(pitch - prevPitch) > 0.005
+    || Math.abs(fovH - prevFovH) > 0.05;
+
+  const zoomLabel = document.getElementById('zoom-indicator');
+  if (zoomLabel) zoomLabel.textContent = Math.round(fovH) + '°';
+  const btnIn  = document.getElementById('btn-zoom-in');
+  const btnOut = document.getElementById('btn-zoom-out');
+  if (btnIn)  btnIn.disabled  = targetFovH <= FOV_MIN;
+  if (btnOut) btnOut.disabled = targetFovH >= FOV_MAX;
+
+  if (moving) {
+    drawPanorama();
+    updateHotspots();
+
+    // Scale inscription rect stroke width with FOV
+    const rectSvg = document.getElementById('rect-svg');
+    if (rectSvg) {
+      const rectStroke = Math.max(0.6, Math.min(1.5, (120 - fovH) / (120 - 20) * 0.9 + 0.6));
+      rectSvg.style.setProperty('--rect-stroke', rectStroke);
+    }
+  }
+
+  requestAnimationFrame(tick);
+}
+
+// ═══════════════════════════════════════════════════════
+//  INTERACTION
+// ═══════════════════════════════════════════════════════
+// ── Startup hint dismiss ─────────────────────────────
+function dismissHint() {
+  const h = document.getElementById('start-hint');
+  if (!h || !h.classList.contains('visible')) return;
+  h.classList.add('fade-out');
+  setTimeout(() => h.remove(), 650);
+}
+document.getElementById('start-hint-close')?.addEventListener('click', dismissHint);
+
+canvas.addEventListener('mousedown', e => {
+  dismissHint();
+  homeSwing = false;
+  if (pickMode) return;
+  isDragging = true; lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  targetYaw   -= (e.clientX - lastX) * 0.2;
+  targetPitch  = clampPitch(targetPitch + (e.clientY - lastY) * 0.15);
+  lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mouseup', () => isDragging = false);
+
+canvas.addEventListener('touchstart', e => {
+  homeSwing = false;
+  if (e.touches.length === 1) {
+    isDragging = true;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if (isDragging && e.touches.length === 1) {
+    targetYaw   -= (e.touches[0].clientX - lastX) * 0.2;
+    targetPitch  = clampPitch(targetPitch + (e.touches[0].clientY - lastY) * 0.15);
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  }
+}, { passive: true });
+canvas.addEventListener('touchend', () => isDragging = false);
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastPinchDist = Math.sqrt(dx*dx + dy*dy);
+    isDragging = false;
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && lastPinchDist !== null) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    targetFovH = Math.max(FOV_MIN, Math.min(FOV_MAX, targetFovH * (lastPinchDist / dist)));
+    lastPinchDist = dist;
+  }
+}, { passive: true });
+canvas.addEventListener('touchend', e => { if (e.touches.length < 2) lastPinchDist = null; });
+
+canvas.addEventListener('wheel', e => {
+  dismissHint();
+  homeSwing = false;
+  e.preventDefault();
+  targetFovH = Math.max(FOV_MIN, Math.min(FOV_MAX, targetFovH + (e.deltaY > 0 ? 6 : -6)));
+}, { passive: false });
+
+window.addEventListener('keydown', e => {
+  if (e.key === '+' || e.key === '=') targetFovH = Math.max(FOV_MIN, targetFovH - 10);
+  if (e.key === '-' || e.key === '_') targetFovH = Math.min(FOV_MAX, targetFovH + 10);
+});
+//  Uses the exact same 3-D rotation as the GLSL shader.
+//  Returns { x, y, behind } in CSS canvas pixels.
+// ═══════════════════════════════════════════════════════
+function projectPoint(hsYawDeg, hsPitchDeg) {
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  const lon = hsYawDeg   * Math.PI / 180;
+  const lat = hsPitchDeg * Math.PI / 180;
+  const wx = Math.sin(lon) * Math.cos(lat);
+  const wy = Math.sin(lat);
+  const wz = Math.cos(lon) * Math.cos(lat);
+  const camYaw = yaw * Math.PI / 180;
+  const cosY = Math.cos(-camYaw), sinY = Math.sin(-camYaw);
+  const cx1 =  wx * cosY + wz * sinY;
+  const cz1 = -wx * sinY + wz * cosY;
+  const cy1 = wy;
+  const camPitch = -pitch * Math.PI / 180;
+  const cosP = Math.cos(-camPitch), sinP = Math.sin(-camPitch);
+  const cy2 =  cy1 * cosP - cz1 * sinP;
+  const cz2 =  cy1 * sinP + cz1 * cosP;
+  const cx2 = cx1;
+  if (cz2 <= 0.01) return { x: 0, y: 0, behind: true };
+  const tanHalfFovH = Math.tan((fovH * Math.PI / 180) * 0.5);
+  const aspect = H / W;
+  const sx = (cx2 / cz2) / tanHalfFovH;
+  const sy = (cy2 / cz2) / (tanHalfFovH * aspect);
+  return { x: (sx * 0.5 + 0.5) * W, y: (0.5 - sy * 0.5) * H, behind: false };
+}
+function projectHotspot(y, p) { return projectPoint(y, p); }
+
+function updateHotspots() {
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+
+  HOTSPOTS.forEach(hs => {
+    if (hs.type === 'inscription') {
+      const g = document.getElementById('hs-' + hs.id);
+      if (!g) return;
+      const pts = hs.corners.map(([cy, cp]) => projectPoint(cy, cp));
+      const anyBehind = pts.some(p => p.behind);
+      if (anyBehind) { g.style.display = 'none'; return; }
+      g.style.display = '';
+      const margin = Math.max(W, H) * 2;
+      if (pts.some(p => p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin)) {
+        g.style.display = 'none'; return;
+      }
+      const pointsAttr = pts.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+      g.querySelector('.rect-fill').setAttribute('points', pointsAttr);
+      g.querySelector('.rect-border').setAttribute('points', pointsAttr);
+      // Corner L-ticks
+      const TICK = 9;
+      const ticks = g.querySelectorAll('.rect-corner');
+      pts.forEach((pt, ci) => {
+        const prev = pts[(ci + 3) % 4], next = pts[(ci + 1) % 4];
+        const dx0 = next.x - pt.x, dy0 = next.y - pt.y;
+        const l0 = Math.sqrt(dx0*dx0 + dy0*dy0) || 1;
+        const dx1 = prev.x - pt.x, dy1 = prev.y - pt.y;
+        const l1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+        const t0 = ticks[ci * 2], t1 = ticks[ci * 2 + 1];
+        t0.setAttribute('x1', pt.x); t0.setAttribute('y1', pt.y);
+        t0.setAttribute('x2', pt.x + dx0/l0*TICK); t0.setAttribute('y2', pt.y + dy0/l0*TICK);
+        t1.setAttribute('x1', pt.x); t1.setAttribute('y1', pt.y);
+        t1.setAttribute('x2', pt.x + dx1/l1*TICK); t1.setAttribute('y2', pt.y + dy1/l1*TICK);
+      });
+      // Label tag at top-left corner (pts[0])
+      const lx = pts[0].x, ly = pts[0].y;
+      const LW = Math.min(hs.title.length * 6.8 + 28, 180), LH = 18;
+      const lbg    = g.querySelector('.rect-label-bg');
+      const ltxt   = g.querySelector('.rect-label-text');
+      const lbadge = g.querySelector('.rect-label-badge');
+      lbg.setAttribute('x', lx); lbg.setAttribute('y', ly - LH);
+      lbg.setAttribute('width', LW); lbg.setAttribute('height', LH);
+      ltxt.setAttribute('x', lx + 22); ltxt.setAttribute('y', ly - LH/2);
+      lbadge.setAttribute('x', lx + 9); lbadge.setAttribute('y', ly - LH/2);
+
+    } else {
+      const el = document.getElementById('hs-' + hs.id);
+      if (!el) return;
+      const { x, y: py, behind } = projectPoint(hs.yaw, hs.pitch);
+      const onScreen = !behind && x > -40 && x < W + 40 && py > -40 && py < H + 40;
+      const visible  = onScreen && fovH < 76;
+      el.style.left = x + 'px';
+      el.style.top  = py + 'px';
+      el.style.opacity       = visible ? '1' : '0';
+      el.style.pointerEvents = visible ? 'all' : 'none';
+      el._screenX = x; el._screenY = py; el._onScreen = visible;
+    }
+  });
+
+  // ── Scale + cluster pass (point hotspots only) ───────────────
+  // Scale: fovH 20° → 1.0 (full size when zoomed in), 90° → 0.75, 120° → 0.5
+  const scale = Math.max(0.5, Math.min(1.0, 0.5 + (120 - fovH) / (120 - 20) * 0.5));
+
+  // Collect all point hotspot elements (on-screen and off) for class reset
+  const allPointEls = [];
+  HOTSPOTS.forEach(hs => {
+    if (hs.type === 'inscription') return;
+    const el = document.getElementById('hs-' + hs.id);
+    if (el) allPointEls.push(el);
+  });
+
+  // Reset all cluster classes first
+  allPointEls.forEach(el => {
+    el.classList.remove('cluster-hidden', 'cluster-rep');
+    el.style.setProperty('--hs-scale', scale);
+    const badge = el.querySelector('.hotspot-cluster-badge');
+    if (badge) badge.textContent = '';
+  });
+
+  // Collect visible point hotspots
+  const visible = [];
+  HOTSPOTS.forEach(hs => {
+    if (hs.type === 'inscription') return;
+    const el = document.getElementById('hs-' + hs.id);
+    if (!el || !el._onScreen) return;
+    visible.push({ hs, el, x: el._screenX, y: el._screenY });
+  });
+
+  // Cluster: group dots within CLUSTER_R px — active hotspot is always representative
+  const CLUSTER_R = 28;
+  const assigned = new Set();
+
+  visible.forEach((a, ai) => {
+    if (assigned.has(ai)) return;
+    assigned.add(ai);
+    const absorbed = [];
+
+    visible.forEach((b, bi) => {
+      if (bi === ai || assigned.has(bi)) return;
+      const dx = a.x - b.x, dy = a.y - b.y;
+      if (Math.sqrt(dx*dx + dy*dy) < CLUSTER_R) {
+        // If b is active, swap so b is representative
+        if (b.el.classList.contains('active') && !a.el.classList.contains('active')) {
+          absorbed.push(a);
+          assigned.add(bi);
+          // Make b the rep — recurse is complex, so just let b handle itself
+          return;
+        }
+        assigned.add(bi);
+        absorbed.push(b);
+        b.el.classList.add('cluster-hidden');
+      }
+    });
+
+    if (absorbed.length > 0) {
+      a.el.classList.add('cluster-rep');
+      const badge = a.el.querySelector('.hotspot-cluster-badge');
+      if (badge) badge.textContent = '+' + absorbed.length;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  BUILD DOM
+// ═══════════════════════════════════════════════════════
+function buildHotspots() {
+  const layer = document.getElementById('hotspot-layer');
+  const svg   = document.getElementById('rect-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+
+  HOTSPOTS.forEach((hs, i) => {
+    if (hs.type === 'inscription') {
+      const g = document.createElementNS(NS, 'g');
+      g.classList.add('rect-hotspot-group');
+      g.id = 'hs-' + hs.id; g.dataset.id = hs.id;
+
+      const fill = document.createElementNS(NS, 'polygon');
+      fill.classList.add('rect-fill');
+      const border = document.createElementNS(NS, 'polygon');
+      border.classList.add('rect-border');
+      g.appendChild(fill); g.appendChild(border);
+
+      for (let c = 0; c < 4; c++) {
+        const t0 = document.createElementNS(NS, 'line');
+        const t1 = document.createElementNS(NS, 'line');
+        t0.classList.add('rect-corner'); t1.classList.add('rect-corner');
+        g.appendChild(t0); g.appendChild(t1);
+      }
+
+      const labelWrap = document.createElementNS(NS, 'g');
+      labelWrap.classList.add('rect-label-wrap');
+      const lbg    = document.createElementNS(NS, 'rect'); lbg.classList.add('rect-label-bg');
+      const ltxt   = document.createElementNS(NS, 'text'); ltxt.classList.add('rect-label-text');
+      ltxt.textContent = hs.title;
+      const lbadge = document.createElementNS(NS, 'text'); lbadge.classList.add('rect-label-badge');
+      lbadge.textContent = i + 1;
+      labelWrap.appendChild(lbg); labelWrap.appendChild(ltxt); labelWrap.appendChild(lbadge);
+      g.appendChild(labelWrap);
+
+      g.addEventListener('click', () => setActive(hs.id));
+      svg.appendChild(g);
+
+    } else {
+      const el = document.createElement('div');
+      el.className = 'hotspot'; el.id = 'hs-' + hs.id; el.dataset.id = hs.id;
+      el.innerHTML =
+        '<div class="hotspot-ring"></div><div class="hotspot-ring"></div>' +
+        '<div class="hotspot-ring"></div><div class="hotspot-core"></div>' +
+        '<div class="hotspot-num">' + (i+1) + '</div>' +
+        '<div class="hotspot-tooltip">' + hs.title + '</div>' +
+        '<div class="hotspot-cluster-badge"></div>';
+      el.addEventListener('click', () => setActive(hs.id));
+      layer.appendChild(el);
+    }
+  });
+}
+
+function buildPanel() {
+  const list = document.getElementById('annotation-list');
+  list.innerHTML = '';  // clear before rebuild
+
+  HOTSPOTS.forEach((hs, i) => {
+    const entry = document.createElement('div');
+    entry.className = 'annotation-entry'; entry.dataset.id = hs.id;
+
+    let inscriptionHTML = '';
+    if (hs.type === 'inscription' && hs.transcription) {
+      const lines = hs.transcription.map((line, li) =>
+        '<span class="line"><span class="line-num">' + (li+1) + '</span>' + line + '</span>'
+      ).join('\n');
+      const translationHTML = hs.translation
+        ? '<div class="inscription-translation"><strong>Vertaling</strong>' + hs.translation + '</div>'
+        : '';
+      inscriptionHTML =
+        '<div class="inscription-block">' +
+        (hs.image ? '<img class="inscription-bitmap" src="' + hs.image + '" alt="Inscription photograph" loading="lazy">' : '') +
+        '<div class="inscription-label">Transcriptie · Latijnse tekst</div>' +
+        '<div class="inscription-transcription">' + lines + '</div>' +
+        translationHTML +
+        '</div>';
+    }
+
+    // See-also chips
+    let seeAlsoHTML = '';
+    if (hs.links && hs.links.length > 0) {
+      const chips = hs.links.map(lid => {
+        const target = HOTSPOTS.find(h => h.id === lid);
+        if (!target) return '';
+        const typeIcon = target.type === 'inscription' ? '▭' : '◉';
+        return '<button class="see-also-chip" data-goto="' + lid + '">' +
+          '<span class="see-also-chip-icon">' + typeIcon + '</span>' +
+          target.title +
+        '</button>';
+      }).filter(Boolean).join('');
+      if (chips) {
+        seeAlsoHTML = '<div class="see-also">' +
+          '<div class="see-also-label">Zie ook</div>' +
+          '<div class="see-also-chips">' + chips + '</div>' +
+        '</div>';
+      }
+    }
+
+    const imgHTML = (hs.type !== 'inscription' && hs.image)
+      ? '<img class="entry-image" src="' + hs.image + '" alt="' + hs.title + '" loading="lazy">'
+      : '';
+
+    entry.innerHTML =
+      '<div class="entry-header">' +
+        '<div class="entry-num">' + (i+1) + '</div>' +
+        '<div class="entry-title">' + hs.title + '</div>' +
+      '</div>' +
+      '<div class="entry-date">' + hs.date + '</div>' +
+      '<div class="entry-body">' +
+        imgHTML +
+        '<p>' + hs.content + '</p>' +
+        inscriptionHTML +
+        seeAlsoHTML +
+        '<button class="look-at-btn" data-id="' + hs.id + '">' +
+          '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/>' +
+          '<path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z"/></svg>' +
+          'Bekijk in 360°' +
+        '</button>' +
+      '</div>';
+
+    entry.addEventListener('click', () => setActive(hs.id, true));
+    entry.querySelector('.look-at-btn').addEventListener('click', e => {
+      e.stopPropagation(); setActive(hs.id, true);
+    });
+    // See-also chip clicks — navigate to linked hotspot
+    entry.querySelectorAll('.see-also-chip').forEach(chip => {
+      chip.addEventListener('click', e => {
+        e.stopPropagation();
+        setActive(chip.dataset.goto, true);
+      });
+    });
+
+    list.appendChild(entry);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATE MANAGEMENT
+// ═══════════════════════════════════════════════════════
+let activeId = null;
+
+function setActive(id, fromPanel = false, fromTour = false) {
+  homeSwing = false;
+  // Stop auto-tour when a hotspot is activated by the user (not by the tour itself)
+  if (autoTour && !fromTour) stopAutoTour();
+  activeId = id;
+  const hs = HOTSPOTS.find(h => h.id === id);
+
+  // Toggle active on point hotspots (div) and rect hotspots (SVG group)
+  document.querySelectorAll('.hotspot, .rect-hotspot-group').forEach(el =>
+    el.classList.toggle('active', el.dataset.id === id));
+
+  // Toggle active on panel entries
+  document.querySelectorAll('.annotation-entry').forEach(el =>
+    el.classList.toggle('active', el.dataset.id === id));
+
+  const entry = document.querySelector(`.annotation-entry[data-id="${id}"]`);
+  if (entry) entry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  document.getElementById('active-label').textContent = hs ? hs.title : '—';
+
+  if (hs) {
+    // Use hotspot's defined zoom if set; otherwise reset to 90° when coming from panel.
+    if (hs.zoom != null) {
+      targetFovH = Math.max(FOV_MIN, Math.min(FOV_MAX, hs.zoom));
+    } else if (fromPanel) {
+      targetFovH = 90;
+    }
+    flyTo(hsCentre(hs).pitch, hsCentre(hs).yaw);
+  }
+}
+
+// Return the centre yaw/pitch for a hotspot.
+// For inscriptions, derived from corners so it's always accurate.
+function hsCentre(hs) {
+  if (hs.type === 'inscription' && hs.corners && hs.corners.length === 4) {
+    return {
+      yaw:   (hs.corners[0][0] + hs.corners[2][0]) / 2,
+      pitch: (hs.corners[0][1] + hs.corners[2][1]) / 2
+    };
+  }
+  return { yaw: hs.yaw, pitch: hs.pitch };
+}
+
+function flyTo(p, y) {
+  let dy = y - (targetYaw % 360);
+  if (dy > 180) dy -= 360;
+  if (dy < -180) dy += 360;
+  targetYaw   = targetYaw + dy;
+  targetPitch = clampPitch(p);
+}
+
+// ═══════════════════════════════════════════════════════
+//  AUTO TOUR
+// ═══════════════════════════════════════════════════════
+function startAutoTour() {
+  autoTour = true;
+  document.getElementById('btn-autoplay').textContent = '⏹ Stop';
+  runAutoTour();
+}
+function stopAutoTour() {
+  autoTour = false; clearTimeout(autoTourTimer);
+  document.getElementById('btn-autoplay').textContent = '⟳ Rondleiding';
+}
+function runAutoTour() {
+  if (!autoTour) return;
+  setActive(HOTSPOTS[autoTourIndex++ % HOTSPOTS.length].id, true, true);
+  autoTourTimer = setTimeout(runAutoTour, 4000);
+}
+document.getElementById('btn-autoplay').addEventListener('click', () =>
+  autoTour ? stopAutoTour() : startAutoTour());
+
+// ═══════════════════════════════════════════════════════
+//  PANEL TOGGLE
+// ═══════════════════════════════════════════════════════
+let panelVisible = true;
+document.getElementById('btn-toggle-panel').addEventListener('click', () => {
+  const panel = document.getElementById('side-panel');
+  const div   = document.getElementById('divider');
+  panelVisible = !panelVisible;
+  panel.style.display = panelVisible ? '' : 'none';
+  div.style.display   = panelVisible ? '' : 'none';
+  document.getElementById('btn-toggle-panel').textContent =
+    panelVisible ? 'Details ◧' : 'Details ◨';
+});
+
+// ═══════════════════════════════════════════════════════
+//  ZOOM BUTTONS
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-zoom-in').addEventListener('click',  () =>
+  targetFovH = Math.max(FOV_MIN, targetFovH - 15));
+document.getElementById('btn-zoom-out').addEventListener('click', () =>
+  targetFovH = Math.min(FOV_MAX, targetFovH + 15));
+
+// ═══════════════════════════════════════════════════════
+//  LOCAL PANORAMA FILE LOADER
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-load-pano').addEventListener('click', () =>
+  document.getElementById('pano-file-input').click());
+
+document.getElementById('pano-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => loadPanoSrc(ev.target.result);
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+// ═══════════════════════════════════════════════════════
+//  PANEL DIVIDER (resizable)
+// ═══════════════════════════════════════════════════════
+const divider = document.getElementById('divider');
+let divDragging = false;
+divider.addEventListener('mousedown', e => {
+  divDragging = true; divider.classList.add('dragging'); e.preventDefault();
+});
+window.addEventListener('mousemove', e => {
+  if (!divDragging) return;
+  const rect = document.getElementById('app').getBoundingClientRect();
+  document.getElementById('side-panel').style.width =
+    Math.max(280, Math.min(600, rect.right - e.clientX)) + 'px';
+});
+window.addEventListener('mouseup', () => {
+  divDragging = false; divider.classList.remove('dragging');
+});
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+function init() {
+  // Apply site config from annotations.js
+  const cfg = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
+  if (cfg.siteTitle) {
+    const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.innerHTML = val; };
+    set('site-title',    cfg.siteTitle);
+    set('site-subtitle', cfg.siteSubtitle);
+    set('panel-label',   cfg.panelLabel);
+    set('panel-heading', cfg.panelHeading);
+    set('panel-meta',    cfg.panelMeta);
+    // Welcome title: "Welkom bij <first part of siteTitle>"
+    const firstPart = cfg.siteTitle.split(/\s*[\u00b7·]\s*/)[0].trim();
+    const welcomeEl = document.getElementById('start-hint-welcome');
+    if (welcomeEl) welcomeEl.textContent = 'Welkom bij ' + firstPart;
+    // Loading screen title
+    const loadingTitle = document.getElementById('loading-title');
+    if (loadingTitle) loadingTitle.textContent = firstPart;
+  }
+
+  // Seed starting view from config defaults
+  const defYaw   = cfg.defaultYaw   ?? 0;
+  const defPitch = cfg.defaultPitch ?? 0;
+  const defZoom  = cfg.defaultZoom  ?? 90;
+  yaw = targetYaw = defYaw;
+  pitch = targetPitch = defPitch;
+  fovH = targetFovH = Math.max(FOV_MIN, Math.min(FOV_MAX, defZoom));
+
+  // Reset view button
+  document.getElementById('btn-reset-view').addEventListener('click', () => {
+    const c = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
+    flyTo(c.defaultPitch ?? 0, c.defaultYaw ?? 0);
+    targetFovH = Math.max(FOV_MIN, Math.min(FOV_MAX, c.defaultZoom ?? 90));
+    // Deselect active hotspot
+    activeId = null;
+    document.querySelectorAll('.hotspot, .rect-hotspot-group, .annotation-entry')
+      .forEach(el => el.classList.remove('active'));
+    document.getElementById('active-label').textContent = '—';
+    // Start oscillation at zoom 100
+    targetFovH = 100;
+    homeSwing = true;
+    homeSwingStart = performance.now();
+  });
+  initGL();
+  resizeCanvas();
+  window.addEventListener('resize', () => { resizeCanvas(); updateHotspots(); });
+  buildHotspots();
+  buildPanel();
+  tick();
+  setTimeout(() => {
+    document.getElementById('loading').classList.add('fade-out');
+    setTimeout(() => document.getElementById('loading').remove(), 900);
+    // Show startup hint after loading screen fades
+    const hint = document.getElementById('start-hint');
+    if (hint) setTimeout(() => hint.classList.add('visible'), 400);
+    // Start home oscillation at zoom 100
+    targetFovH = 100;
+    homeSwing = true;
+    homeSwingStart = performance.now();
+  }, 1600);
+}
+
+init();
+</script>
+</body>
+</html>
