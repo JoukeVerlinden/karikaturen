@@ -49,7 +49,7 @@ const SITE_CONFIG = {
     </p>
     <h3>Archief- en dataonderzoek</h3>
     <p>
-      <strong>Gilles Weyns</strong> — archivistisch onderzoek,
+      <strong>Gilles Weyns</strong> — archiefonderzoek,
       transcripties en datering van de karikaturen.<br>
       <strong>Ulrike Müller</strong> — contextonderzoek Prix de Rome
       en academiegeschiedenis.
@@ -58,13 +58,13 @@ const SITE_CONFIG = {
     <h3>Digitale ontwikkeling</h3>
     <p>
       <strong>Yiaming Ye</strong> — 3D fotografie en 3D reconstructie.<br>
-      <strong>Jouke Verlinden</strong>Ontwerp en programmering.
+      <strong>Jouke Verlinden</strong> - Ontwerp en programmering.
     </p>
     <h3>Met dank aan</h3>
     <p>
       Felixarchief Antwerpen · Stad Antwerpen Erfgoed ·
       Koninklijke Academie van Schone Kunsten Antwerpen.<br>
-      bron historische fotos: Dossier betreffende de huldiging van laureaten van de Prix de Rome, Felixarchief Antwerpen, inv. 4414#104
+      Bron historische fotos: Dossier betreffende de huldiging van laureaten van de Prix de Rome, Felixarchief Antwerpen, inv. 4414#104
     </p>
     <p class="colophon-copy">
       © 2026 UAntwerpen / Felixarchief. Beeldmateriaal en annotaties zijn
