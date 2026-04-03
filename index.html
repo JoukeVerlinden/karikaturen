@@ -260,7 +260,7 @@
     position: fixed;
     top: 52px; /*bottom: 0; */left: 0; right: 0;
   /*  height: var(--app-height, calc(100vh - 52px)); even testen */
-     height: 100vh;
+     height: calc(100vh - 52px); /* was 100vh */
     display: flex;
   }
 
@@ -2366,6 +2366,8 @@ document.getElementById('btn-toggle-panel').addEventListener('click', () => {
   div.style.display   = panelVisible ? '' : 'none';
   document.getElementById('btn-toggle-panel').textContent =
     panelVisible ? 'Details ◧' : 'Details ◨';
+ // Canvas width changed — resize backing buffer and force redraw
+  requestAnimationFrame(() => { resizeCanvas(); panoDirty = true; scheduleTick(true); });
 });
 
 // ═══════════════════════════════════════════════════════
