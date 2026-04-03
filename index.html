@@ -346,7 +346,11 @@
   }
   .hotspot-ring:nth-child(2) { animation-delay: 0.8s; }
   .hotspot-ring:nth-child(3) { animation-delay: 1.6s; }
-  /* Pause ring animations when hotspot is not on screen — saves ~90 simultaneous CSS animations */
+  /* Active hotspot: switch rings to red */
+  .hotspot.active .hotspot-ring {
+    border-color: var(--ua-red);
+  }
+  /* Pause ring animations when hotspot is not on screen */
   .hotspot.cluster-hidden .hotspot-ring,
   .hotspot.year-hidden .hotspot-ring,
   .hotspot.rings-paused .hotspot-ring { animation-play-state: paused; }
@@ -356,6 +360,7 @@
     100% { transform: scale(2.2); opacity: 0; }
   }
 
+  /* Core: teal at rest, red when active/hovered */
   .hotspot-core {
     position: absolute;
     top: 50%; left: 50%;
@@ -363,19 +368,20 @@
     width: 14px; height: 14px;
     background: var(--ua-teal);
     border-radius: 50%;
-    box-shadow: 0 0 10px rgba(234,44,56,0.6), 0 0 22px rgba(234,44,56,0.25);
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 10px rgba(130,161,173,0.7), 0 0 22px rgba(130,161,173,0.3);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
   }
 
-  .hotspot:hover .hotspot-core,
+  .hotspot:hover .hotspot-core {
+    transform: translate(-50%, -50%) scale(1.3);
+    background: var(--ua-teal-dark);
+    box-shadow: 0 0 16px rgba(130,161,173,0.9), 0 0 32px rgba(130,161,173,0.4);
+  }
+
   .hotspot.active .hotspot-core {
     transform: translate(-50%, -50%) scale(1.3);
-    box-shadow: 0 0 16px rgba(234,44,56,0.9), 0 0 32px rgba(234,44,56,0.4);
-  }
-
-  .hotspot.active .hotspot-core {
-    background: #f00;
-    box-shadow: 0 0 12px rgba(255,255,255,0.8), 0 0 0 2px var(--ua-red);
+    background: var(--ua-red);
+    box-shadow: 0 0 14px rgba(234,44,56,0.8), 0 0 28px rgba(234,44,56,0.35);
   }
 
   /* Tooltip */
@@ -770,20 +776,20 @@
 
   .entry-title {
     font-family: var(--sans);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--ua-blue);
-    line-height: 1.3;
+    line-height: 1.25;
     flex: 1;
   }
 
   .entry-date {
     font-family: var(--sans);
     font-style: normal;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--ua-teal-dark);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     margin-bottom: 8px;
     padding-left: 0;
     text-transform: uppercase;
@@ -816,7 +822,7 @@
     align-items: center;
     gap: 7px;
     margin-top: 12px;
-    background: var(--ua-blue);
+    background: var(--ua-teal);
     border: none;
     color: #fff;
     font-family: var(--sans);
@@ -832,7 +838,7 @@
   }
 
   .look-at-btn:hover {
-    background: var(--ua-red);
+    background: var(--ua-teal-dark);
     color: #fff;
   }
 
@@ -936,10 +942,12 @@
       border-top: 1px solid var(--ua-light-gray);
     }
     #topbar .site-subtitle { display: none; }
+    #topbar .faculty-logo { display: none; }
+    #topbar-sep { display: none; }
     #active-indicator { display: none !important; }
     #btn-load-pano, #pano-file-input, #btn-editor { display: none; }
     #editor-overlay { display: none !important; }
-    #btn-toggle-panel { display: none; } /* panel always visible on mobile */
+    #btn-toggle-panel { display: none; }
     .ctrl-btn { font-size: 10px; padding: 4px 10px; }
 
     /* ── Panel header — minimal ── */
@@ -1085,7 +1093,7 @@
   #start-hint-inner {
     background: var(--ua-blue);
     border: none;
-    border-top: 3px solid var(--ua-red);
+    border-top: 3px solid var(--ua-teal);
     padding: 16px 20px 14px;
     max-width: 440px;
     width: calc(100% - 48px);
@@ -1241,33 +1249,7 @@
 <!-- Top Bar -->
 <div id="topbar">
   <div style="display:flex;align-items:center;gap:14px;min-width:0;">
-    
- 
-
-  <div id="active-indicator">
-    <div id="active-dot"></div>
-    Bekijkt: <span id="active-label">—</span>
-  </div>
-
-  <div class="controls">
-    <!-- Era / panorama switcher (populated by JS from SITE_CONFIG.scenes) -->
-    <div id="era-switcher">
-      <span class="era-label">Tijdvak</span>
-    </div>
-    <button class="ctrl-btn" id="btn-load-pano" title="Laad een lokaal equirectangulaire panoramabestand" style="display:none">⬆ Panorama laden</button>
-    <input type="file" id="pano-file-input" accept="image/*" style="display:none">
-    <button class="ctrl-btn" id="btn-autoplay">⟳ Rondleiding</button>
-    <button class="ctrl-btn" id="btn-toggle-panel">Details ◧</button>
-    <button id="btn-info" title="Over dit project">ⓘ</button>
-    <button class="ctrl-btn" id="btn-editor" style="display:none" style="border-color:rgba(200,217,216,0.4);color:rgba(200,217,216,0.9)">✎ Bewerken</button>
-      <!-- Thin separator -->
-    <div style="width:1px;height:28px;background:rgba(255,255,255,0.18);flex-shrink:0;"></div>
-    <div style="min-width:0;">
-      <div class="site-title" id="site-title"></div>
-      <div class="site-subtitle" id="site-subtitle"></div>
-    </div>
-  </div>
- <!-- Faculty of Design Sciences identity mark -->
+    <!-- Faculty of Design Sciences identity mark -->
     <a class="faculty-logo" href="https://www.uantwerpen.be/nl/overuantwerpen/faculteiten/faculteit-ontwerpwetenschappen/" target="_blank" title="Faculteit Ontwerpwetenschappen — Universiteit Antwerpen">
       <div class="faculty-mark">
         <!-- Compass/D geometry mark representing Design Sciences -->
@@ -1283,6 +1265,27 @@
         <span class="fw-main">Ontwerpwetenschappen</span>
       </div>
     </a>
+    <!-- Thin separator -->
+    <div id="topbar-sep" style="width:1px;height:28px;background:rgba(255,255,255,0.18);flex-shrink:0;"></div>
+    <div style="min-width:0;">
+      <div class="site-title" id="site-title"></div>
+      <div class="site-subtitle" id="site-subtitle"></div>
+    </div>
+  </div>
+
+  <div id="active-indicator">
+    <div id="active-dot"></div>
+    Bekijkt: <span id="active-label">—</span>
+  </div>
+
+  <div class="controls">
+    <!-- Era / panorama switcher (populated by JS from SITE_CONFIG.scenes) -->
+    <div id="era-switcher">
+      <span class="era-label">Tijdvak</span>
+    </div>
+    <button class="ctrl-btn" id="btn-autoplay">⟳ Rondleiding</button>
+    <button class="ctrl-btn" id="btn-toggle-panel">Details ◧</button>
+    <button id="btn-info" title="Over dit project">ⓘ</button>
   </div>
 </div>
 
@@ -1552,7 +1555,7 @@
   max-height: 88vh;
   background: #fff;
   border: none;
-  border-top: 3px solid var(--ua-red);
+  border-top: 3px solid var(--ua-teal);
   display: flex;
   flex-direction: column;
   font-family: var(--sans);
