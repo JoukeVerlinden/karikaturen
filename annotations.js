@@ -375,7 +375,7 @@ const HOTSPOTS = [
         date:  "1901",
         pitch: -6.7, yaw: 43.8,
         zoom: 20,
-        image: "images/paul_artot.jpg"
+        image: "images/paul_artot.jpg",
         content: `Geboren in 1872 in Brussel. Opleiding in Brussel. Deelname: 1901. Finalist in 1901.`,
       },
   {
