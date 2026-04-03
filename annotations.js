@@ -173,8 +173,8 @@ const HOTSPOTS = [
         content: `Geboren in 1871 in Borgerhout. Opleiding in Antwerpen. Deelnames: 1895 (24j) – 1898 (27j). Finalist in 1895 en 1898. 1895: Tweede prijs. 1898: Eerste prijs.`,
       },
       {
-        id:    "A7 Jan Van Malderen",
-        title: "A7",
+        id:    "A7",
+        title: "A7 Jan Van Malderen",
         date:  "1913",
         pitch: 25.1, yaw: 280.4,
         zoom: 20,
@@ -375,6 +375,7 @@ const HOTSPOTS = [
         date:  "1901",
         pitch: -6.7, yaw: 43.8,
         zoom: 20,
+        image: "images/paul_artot.jpg"
         content: `Geboren in 1872 in Brussel. Opleiding in Brussel. Deelname: 1901. Finalist in 1901.`,
       },
   {
@@ -385,7 +386,7 @@ const HOTSPOTS = [
         corners: [[18.65, 1.54], [45.16, 1.54], [45.16, -0.26], [18.65, -0.26]],
         zoom: 25,
         content: ``,
-        image: "images/Foto_en_loge_1901_deelnemers_Prix_de_Rome_privéarchief.jpg",
+        /*image: "images/Foto_en_loge_1901_deelnemers_Prix_de_Rome_privéarchief.jpg",*/
         transcription: [ "Vriendelijk verzocht deze ignobel menschensmoelen eewig te respecteeren"
 
         ],
