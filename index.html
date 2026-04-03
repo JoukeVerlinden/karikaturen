@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover">
 <title>Heritage 360° Viewer</title>
-<!-- UAntwerpen: ITC Officina Sans via Adobe Fonts (best available web alternative) -->
+<!-- Font: Source Sans 3 — only weights used (400/600/700), loaded non-blocking -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:ital@1&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:ital@1&display=swap"></noscript>
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -78,7 +79,7 @@
     top: 0; left: 0; right: 0;
     height: 52px;
     background: var(--ua-blue);
-    border-bottom: 3px solid var(--ua-red);
+    border-bottom: 3px solid var(--ua-teal);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -392,7 +393,7 @@
     transform: translateX(-50%);
     background: var(--ua-blue);
     border: none;
-    border-top: 2px solid var(--ua-red);
+    border-top: 2px solid var(--ua-teal);
     color: #fff;
     font-family: var(--sans);
     font-size: 11px;
@@ -1032,6 +1033,9 @@
 
   @keyframes load-progress { to { width: 100%; } }
 
+  /* Loading bar fills in 600ms max — synced with pano-ready dismiss */
+  .loading-bar { animation-duration: 0.6s; }
+
   .loading-sub {
     font-family: var(--sans);
     font-style: normal;
@@ -1251,11 +1255,10 @@
   <div style="display:flex;align-items:center;gap:14px;min-width:0;">
     <!-- Faculty of Design Sciences identity mark -->
     <a class="faculty-logo" href="https://www.uantwerpen.be/nl/overuantwerpen/faculteiten/ontwerpwetenschappen/" target="_blank" title="Faculteit Ontwerpwetenschappen — Universiteit Antwerpen">
-      <div class="faculty-wordmark">
-        <!-- Compass/D geometry mark representing Design Sciences -->
-        <img src="logosmall.png" />
-      </div>
-     
+          <div class="faculty-wordmark">
+            <!-- Compass/D geometry mark representing Design Sciences -->
+            <img src="logosmall.png" />
+          </div>
     </a>
     <!-- Thin separator -->
     <div id="topbar-sep" style="width:1px;height:28px;background:rgba(255,255,255,0.18);flex-shrink:0;"></div>
@@ -1502,442 +1505,13 @@
 <div id="pano-transition"></div>
 
 
-<!-- External annotations — loaded first so HOTSPOTS and SITE_CONFIG are available.
-     When opened as file:// the browser may block this; the inline fallback below
-     ensures the viewer always has data regardless. -->
+<!-- iOS Safari: set --app-height immediately before any layout occurs -->
 <script>
-// Set viewport height immediately so first paint is correct on iOS Safari
-(function() {
-  var topH = window.innerWidth <= 768 ? 36 : 52;
-  document.documentElement.style.setProperty('--app-height', (window.innerHeight - topH) + 'px');
-})();
+(function(){var t=window.innerWidth<=768?36:52;document.documentElement.style.setProperty('--app-height',(window.innerHeight-t)+'px');}());
 </script>
+<!-- Annotations data — synchronous so HOTSPOTS/SITE_CONFIG are ready for init() -->
 <script src="annotations.js"></script>
 
-<!-- Inline fallback: only runs if annotations.js failed to load (e.g. file://) -->
-<script>
-if (typeof HOTSPOTS === 'undefined') {
-// ── FALLBACK DATA (mirrors annotations.js — edit that file, not this) ──────
-// ═══════════════════════════════════════════════════════
-//  annotations.js — Heritage 360° Viewer · Content File
-//
-//  Edit this file to update all text, hotspot positions,
-//  images, and panel content without touching the viewer.
-//
-//  SITE_CONFIG  → top-bar title, panel header, meta line
-//  HOTSPOTS     → all point and inscription annotations
-// ═══════════════════════════════════════════════════════
-
-// ── Site identity ────────────────────────────────────────
-const SITE_CONFIG = {
-  siteTitle:    "Humor op de muren \u00a0·\u00a0 Digital Archive",
-  siteSubtitle: "Karikaturen op de Antwerpse Academie van schone kunsten",
-  panelLabel:   "Annotated Points of Interest",
-  panelHeading: "Prix de rome",
-  panelMeta:    "23 documented features \u00b7 circa 1904 – 1910",
-  panoramaFile: "theroom1.jpg",   // default panorama loaded on startup
-  defaultYaw:   360,               // starting horizontal angle in degrees
-  defaultPitch: 0,               // starting vertical angle in degrees
-  defaultZoom:  90               // starting FOV in degrees (20–120)
-};
-
-// ── Annotations ──────────────────────────────────────────
-//
-//  Point hotspot fields:
-//    id       (string)   unique identifier
-//    pitch    (number)   vertical angle in degrees (+up / -down)
-//    yaw      (number)   horizontal angle in degrees
-//    title    (string)   short label shown in panel + tooltip
-//    date     (string)   date / location line
-//    image    (string)   URL or relative path for the panel thumbnail
-//    content  (string)   HTML body text (bold, em, etc. allowed)
-//    links    (string[]) optional — IDs of related hotspots shown as
-//                        clickable chips at the bottom of the panel entry
-//    zoom     (number)   optional — FOV in degrees (20–120) applied when
-//                        navigating to this hotspot; omit to use default 90°
-//
-//  Inscription hotspot — all of the above except pitch/yaw, plus:
-//    type         "inscription"
-//    corners      [[yaw,pitch], [yaw,pitch], [yaw,pitch], [yaw,pitch]]
-//                 top-left → top-right → bottom-right → bottom-left
-//                 (fly-to centre is derived automatically from corners[0] and corners[2])
-//    transcription  (string[])  one entry per line of the inscription
-//    translation    (string)    English rendering shown below transcription
-// ─────────────────────────────────────────────────────────
-
-const HOTSPOTS = [
-  {
-    id:    "hotspot-1774180683546",
-    title: "A1",
-    date:  "",
-    pitch: -5.2, yaw: 252,
-    zoom: 20,
-    content: `whole coly`,
-  },
-  {
-    id:    "A2",
-    title: "A2",
-    date:  "",
-    pitch: -4.5, yaw: 262.2,
-    zoom: 30,
-    content: ``,
-  },
-  {
-    id:    "A3",
-    title: "A3",
-    date:  "",
-    pitch: -6.1, yaw: 269.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "A4",
-    title: "A4",
-    date:  "",
-    pitch: -3.4, yaw: 276.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "A5",
-    title: "A5",
-    date:  "",
-    pitch: -1.4, yaw: 286.2,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181072377",
-    title: "A6",
-    date:  "",
-    pitch: -1.8, yaw: 296.8,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181136312",
-    title: "A7",
-    date:  "",
-    pitch: 25.1, yaw: 280.4,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181155649",
-    title: "A8",
-    date:  "",
-    pitch: 18.4, yaw: 283.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181184098",
-    title: "A9",
-    date:  "",
-    pitch: 23.8, yaw: 287.8,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181221015",
-    title: "A10",
-    date:  "",
-    pitch: 32.4, yaw: 288.8,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181251139",
-    title: "A11",
-    date:  "",
-    pitch: 26.4, yaw: 295.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181276113",
-    title: "A12",
-    date:  "",
-    pitch: 29.6, yaw: 299.4,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181399647",
-    title: "B1",
-    date:  "",
-    pitch: -6.1, yaw: 305.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181421980",
-    title: "B2",
-    date:  "",
-    pitch: -8.5, yaw: 310.2,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181447148",
-    title: "B3",
-    date:  "",
-    pitch: -7, yaw: 317,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181475873",
-    title: "B4",
-    date:  "",
-    pitch: 9.1, yaw: 310.2,
-    zoom: 30,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181530410",
-    title: "C1",
-    date:  "",
-    pitch: -10.5, yaw: 14,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181546702",
-    title: "C2",
-    date:  "",
-    pitch: -9, yaw: 21.2,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181569461",
-    title: "C3",
-    date:  "",
-    pitch: -8.3, yaw: 26,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181590951",
-    title: "C4",
-    date:  "",
-    pitch: -9.9, yaw: 31.8,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181621709",
-    title: "C5",
-    date:  "",
-    pitch: -5.5, yaw: 36,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181649218",
-    title: "C6",
-    date:  "",
-    pitch: -5.5, yaw: 40,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181681242",
-    title: "C7",
-    date:  "",
-    pitch: -6.7, yaw: 43.8,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181741443",
-    title: "D1",
-    date:  "",
-    pitch: -7.5, yaw: 49.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181771118",
-    title: "D2",
-    date:  "",
-    pitch: -7.6, yaw: 55.2,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181799406",
-    title: "D3",
-    date:  "",
-    pitch: -7.5, yaw: 61.8,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181825639",
-    title: "D4",
-    date:  "",
-    pitch: -9.4, yaw: 71.6,
-    zoom: 35,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181854226",
-    title: "D5",
-    date:  "",
-    pitch: -9.1, yaw: 82,
-    zoom: 35,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181883281",
-    title: "D6",
-    date:  "",
-    pitch: -7.9, yaw: 90.8,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181906301",
-    title: "D7",
-    date:  "",
-    pitch: -3.4, yaw: 108,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181946871",
-    title: "D8",
-    date:  "",
-    pitch: 13.3, yaw: 51,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774181992435",
-    title: "D9",
-    date:  "",
-    pitch: 20.1, yaw: 57.2,
-    zoom: 35,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774182024041",
-    title: "D10",
-    date:  "",
-    pitch: 13.7, yaw: 65.4,
-    zoom: 35,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774182075334",
-    title: "D11",
-    date:  "",
-    pitch: 20.9, yaw: 74.8,
-    zoom: 35,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774182101476",
-    title: "D12",
-    date:  "",
-    pitch: 8.5, yaw: 87.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774182127538",
-    title: "D13",
-    date:  "",
-    pitch: 22.4, yaw: 89.4,
-    zoom: 35,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774182164347",
-    title: "D14",
-    date:  "",
-    pitch: 20.2, yaw: 108.6,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    id:    "hotspot-1774182185642",
-    title: "D15",
-    date:  "",
-    pitch: 21.7, yaw: 117.2,
-    zoom: 20,
-    content: ``,
-  },
-  {
-    type: "inscription",
-    id:    "inscription-1774182291805",
-    title: "T5 Da zal wel kunne zijn",
-    date:  "",
-    corners: [[53.34, 10.33], [61.08, 10.33], [61.08, 6.86], [53.34, 6.86]],
-    zoom: 20,
-    content: ``,
-    transcription: [
-      "Da zal wel kunne zijn"
-    ],
-    translation: "It could be like that"
-  },
-  {
-    type: "inscription",
-    id:    "inscription-1774182436495",
-    title: "T1",
-    date:  "",
-    corners: [[246.22, 11.45], [269.90, 11.45], [269.90, 8.61], [246.22, 8.61]],
-    zoom: 33,
-    content: ``,
-    transcription: [
-      "Gelukkig zijn zij die buien"
-    ],
-    translation: "Happy are those ..."
-  },
-  {
-    type: "inscription",
-    id:    "inscription-1774182579654",
-    title: "T2",
-    date:  "",
-    corners: [[246.83, 8.41], [270.58, 8.41], [270.58, 5.48], [246.83, 5.48]],
-    zoom: 33,
-    content: ``,
-    transcription: [
-
-    ],
-    translation: ""
-  },
-  {
-    type: "inscription",
-    id:    "inscription-1774182632829",
-    title: "T4",
-    date:  "",
-    corners: [[276.69, 12.78], [296.04, 12.78], [296.04, 9.76], [276.69, 9.76]],
-    zoom: 27,
-    content: ``,
-    transcription: [
-      "Jury salutam"
-    ],
-    translation: ""
-  },
-  {
-    type: "inscription",
-    id:    "inscription-1774182685391",
-    title: "T4",
-    date:  "",
-    corners: [[284.25, 9.76], [302.22, 9.76], [302.22, 6.67], [284.25, 6.67]],
-    zoom: 25,
-    content: ``,
-    transcription: [
-
-    ],
-    translation: ""
-  }
-];
-} // end fallback
-</script>
 
 <script>
 // ═══════════════════════════════════════════════════════
@@ -2152,13 +1726,13 @@ function loadPanoSrc(src) {
   panoImg.src = src;
 }
 
-// Load default panorama from SITE_CONFIG (use middle scene file if scenes are defined)
-(function() {
+// Load default panorama — called from init() after GL context is ready
+function loadInitialPano() {
   const _cfg = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
   const _scenes = _cfg.scenes || [];
-  const _src = _scenes.length > 1 ? _scenes[1].file : (_scenes[0] ? _scenes[0].file : (_cfg.panoramaFile || 'theroom.jpg'));
+  const _src = _scenes.length > 1 ? _scenes[1].file : (_scenes[0] ? _scenes[0].file : (_cfg.panoramaFile || 'theroom2.jpg'));
   loadPanoSrc(_src);
-})();
+}
 
 // ── Canvas resize ────────────────────────────────────
 function resizeCanvas() {
@@ -2911,6 +2485,7 @@ function init() {
     homeSwingStart = performance.now();
   });
   initGL();
+  loadInitialPano(); // start fetch now that GL context exists — avoids race condition
   resizeCanvas();
   // iOS Safari: update --app-height when URL bar shows/hides
   function setAppHeight() {
@@ -2931,17 +2506,35 @@ function init() {
   const _initScene = _initScenes[1] || _initScenes[0];
   if (_initScene) applySceneFilter(_initScene.year);
   scheduleTick(true);
-  setTimeout(() => {
-    document.getElementById('loading').classList.add('fade-out');
-    setTimeout(() => document.getElementById('loading').remove(), 900);
-    // Show startup hint after loading screen fades
+
+  // Dismiss loading screen as soon as the panorama texture is ready,
+  // with a short minimum so the progress bar animation completes.
+  function dismissLoading() {
+    const loading = document.getElementById('loading');
+    if (!loading) return;
+    loading.classList.add('fade-out');
+    setTimeout(() => { if (loading.parentNode) loading.parentNode.removeChild(loading); }, 600);
     const hint = document.getElementById('start-hint');
-    if (hint) setTimeout(() => hint.classList.add('visible'), 400);
-    // Start home oscillation at zoom 100
+    if (hint) setTimeout(() => hint.classList.add('visible'), 200);
     targetFovH = 100;
     homeSwing = true;
     homeSwingStart = performance.now();
-  }, 750);
+  }
+
+  // Poll for panoReady — fires as soon as the image has uploaded to GPU,
+  // but never before 350ms (gives the CSS bar animation time to run).
+  const _loadStart = performance.now();
+  const _MIN_LOAD_MS = 350;
+  function _checkPanoReady() {
+    if (panoReady) {
+      const elapsed = performance.now() - _loadStart;
+      const wait = Math.max(0, _MIN_LOAD_MS - elapsed);
+      setTimeout(dismissLoading, wait);
+    } else {
+      requestAnimationFrame(_checkPanoReady);
+    }
+  }
+  _checkPanoReady();
 }
 
 // ═══════════════════════════════════════════════════════
