@@ -122,7 +122,7 @@ const SITE_CONFIG = {
 const HOTSPOTS = [
       {
         id:    "A1",
-        title: "A1 Louise Brohée",
+        title: "Louise Brohée",
         date:  "1904",
         pitch: -5.2, yaw: 252,
         zoom: 20,
@@ -130,7 +130,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A2",
-        title: "A2 Philippe Swyncop",
+        title: "Philippe Swyncop",
         date:  "1904",
         pitch: -4.5, yaw: 262.2,
         zoom: 30,
@@ -139,7 +139,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A3",
-        title: "A3 Pol Dom?",
+        title: "Pol Dom?",
         date:  "1904",
         pitch: -6.1, yaw: 269.6,
         zoom: 20,
@@ -148,7 +148,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A4",
-        title: "A4 Jozef Posenaer",
+        title: "Jozef Posenaer",
         date:  "1904",
         pitch: -3.4, yaw: 276.6,
         zoom: 20,
@@ -157,7 +157,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A5",
-        title: "A5 Walter Vaes",
+        title: "Walter Vaes",
         date:  "1904",
         pitch: -1.4, yaw: 286.2,
         zoom: 20,
@@ -166,7 +166,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A6",
-        title: "A6 Emiel Vloors?",
+        title: "Emiel Vloors?",
         date:  "1898",
         pitch: -1.8, yaw: 296.8,
         zoom: 20,
@@ -174,7 +174,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A7",
-        title: "A7 Jan Van Malderen",
+        title: "Jan Van Malderen",
         date:  "1913",
         pitch: 25.1, yaw: 280.4,
         zoom: 20,
@@ -182,7 +182,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A8",
-        title: "A8 Albert Claeys ",
+        title: "Albert Claeys ",
         date:  "1913",
         pitch: 18.4, yaw: 283.6,
         zoom: 20,
@@ -190,7 +190,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A9",
-        title: "A9 Juliaan De Vriendt?",
+        title: "Juliaan De Vriendt?",
         date:  "1913",
         pitch: 23.8, yaw: 287.8,
         zoom: 20,
@@ -198,7 +198,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A10",
-        title: "A10 Victor Regnart",
+        title: "AVictor Regnart",
         date:  "1913",
         pitch: 32.4, yaw: 288.8,
         zoom: 20,
@@ -207,7 +207,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A11",
-        title: "A11 Willem Van Riet",
+        title: "Willem Van Riet",
         date:  "1913",
         pitch: 26.4, yaw: 295.6,
         zoom: 20,
@@ -215,7 +215,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A12",
-        title: "A12 Karel Van Belle",
+        title: "Karel Van Belle",
         date:  "1913",
         pitch: 29.6, yaw: 299.4,
         zoom: 20,
@@ -223,7 +223,7 @@ const HOTSPOTS = [
       },
   {
         id:    "A13",
-        title: "A13 Alfred Moitroux",
+        title: "Alfred Moitroux",
         date:  "1913",
         pitch: 14.8, yaw: 293.5,
         zoom: 20,
@@ -231,8 +231,8 @@ const HOTSPOTS = [
       },
         {
         type: "inscription",
-        id:    "inscription-1774182436495",
-        title: "T1 Gelukkig zijn zij...",
+        id:    "T1",
+        title: "Gelukkig zijn zij...",
         date:  "1913",
         corners: [[246.22, 11.45], [269.90, 11.45], [269.90, 8.61], [246.22, 8.61]],
         zoom: 33,
@@ -244,8 +244,8 @@ const HOTSPOTS = [
       },
       {
         type: "inscription",
-        id:    "inscription-1774182579654",
-        title: "T2 Adieu, veau, vache, cochon ..",
+        id:    "T3",
+        title: "Adieu, veau, vache, cochon ..",
         date:  "1913",
         corners: [[246.83, 8.41], [270.58, 8.41], [270.58, 5.48], [246.83, 5.48]],
         zoom: 33,
@@ -257,8 +257,8 @@ const HOTSPOTS = [
       },
       {
         type: "inscription",
-        id:    "inscription-1774182632829",
-        title: "T4 Jury, morituri te salutant!",
+        id:    "T4A",
+        title: "Jury, morituri te salutant!",
         date:  "1913",
         corners: [[276.69, 12.78], [296.04, 12.78], [296.04, 9.76], [276.69, 9.76]],
         zoom: 27,
@@ -270,8 +270,8 @@ const HOTSPOTS = [
       },
       {
         type: "inscription",
-        id:    "inscription-1774182685391",
-        title: "T4 Vaincus d’un jour, vainqueurs de demain!",
+        id:    "T4B",
+        title: "Vaincus d’un jour, vainqueurs de demain!",
         date:  "1913",
         corners: [[284.25, 9.76], [302.22, 9.76], [302.22, 6.67], [284.25, 6.67]],
         zoom: 25,
@@ -283,7 +283,7 @@ const HOTSPOTS = [
       },
       {
         id:    "B1",
-        title: "B1 Joe English",
+        title: "Joe English",
         date:  "1904",
         pitch: -6.1, yaw: 305.6,
         zoom: 20,
@@ -292,7 +292,7 @@ const HOTSPOTS = [
       },
       {
         id:    "B2",
-        title: "B2 Walter Vaes",
+        title: "Walter Vaes",
         date:  "1904",
         /*image: "images/1910_Foto_Watteyne_Brugge.jpg",*/
         pitch: -8.5, yaw: 310.2,
@@ -302,7 +302,7 @@ const HOTSPOTS = [
       },
       {
         id:    "B3",
-        title: "B3 Camille Lambert?",
+        title: "Camille Lambert?",
         date:  "1904",
         pitch: -7, yaw: 317,
         zoom: 20,
@@ -311,7 +311,7 @@ const HOTSPOTS = [
       },
       {
         id:    "B4",
-        title: "B4 Leo Steel",
+        title: "Leo Steel",
         date:  1904,
         /*image: "images/LeoSteel_zelfportret.jpg",*/
         pitch: 9.1, yaw: 310.2,
@@ -320,7 +320,7 @@ const HOTSPOTS = [
       },
       {
         id:    "C1",
-        title: "C1 Walter Vaes",
+        title: "Walter Vaes",
         date:  "1901",
         pitch: -10.5, yaw: 14,
         zoom: 20,
@@ -329,7 +329,7 @@ const HOTSPOTS = [
       },
       {
         id:    "C2",
-        title: "C2 Jozef Posenaer",
+        title: "Jozef Posenaer",
         date:  "1901",
         pitch: -9, yaw: 21.2,
         zoom: 20,
@@ -338,7 +338,7 @@ const HOTSPOTS = [
       },
       {
         id:    "C3",
-        title: "C3 Emiel Jaques",
+        title: "Emiel Jaques",
         date:  "1901",
         pitch: -8.3, yaw: 26,
         zoom: 20,
@@ -346,7 +346,7 @@ const HOTSPOTS = [
       },
       {
         id:    "C4",
-        title: "C4 Jules Van Biesbroeck",
+        title: "Jules Van Biesbroeck",
         date:  "1901",
         pitch: -9.9, yaw: 31.8,
         zoom: 20,
@@ -354,7 +354,7 @@ const HOTSPOTS = [
       },
       {
         id:    "C5",
-        title: "C5 Camille Labert",
+        title: "Camille Labert",
         date:  "1901",
         pitch: -5.5, yaw: 36,
         zoom: 20,
@@ -363,7 +363,7 @@ const HOTSPOTS = [
       },
       {
         id:    "C6",
-        title: "C6 Felix Gogo",
+        title: "Felix Gogo",
         date:  "1901",
         pitch: -5.5, yaw: 40,
         zoom: 20,
@@ -371,17 +371,17 @@ const HOTSPOTS = [
       },
       {
         id:    "C7",
-        title: "C7 Paul Artôt",
+        title: "Paul Artôt",
         date:  "1901",
         pitch: -6.7, yaw: 43.8,
         zoom: 20,
-        image: "images/paul_artot.jpg",
+        /*image: "images/paul_artot.jpg", */
         content: `Geboren in 1872 in Brussel. Opleiding in Brussel. Deelname: 1901. Finalist in 1901.`,
       },
   {
         type: "inscription",
         id:    "T5",
-        title: "T5 Vriendelijk verzocht",
+        title: "Vriendelijk verzocht",
         date:  "1901",
         corners: [[18.65, 1.54], [45.16, 1.54], [45.16, -0.26], [18.65, -0.26]],
         zoom: 25,
@@ -394,7 +394,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D1",
-        title: "D1 Victor De Budt",
+        title: "Victor De Budt",
         date:  "1907",
         pitch: -7.5, yaw: 49.6,
         zoom: 20,
@@ -402,7 +402,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D2",
-        title: "D2 Piet Gillis",
+        title: "Piet Gillis",
         date:  "1907",
         pitch: -7.6, yaw: 55.2,
         zoom: 20,
@@ -410,7 +410,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D3",
-        title: "D3 Joe English",
+        title: "Joe English",
         date:  "1907",
         pitch: -7.5, yaw: 61.8,
         zoom: 20,
@@ -419,7 +419,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D4",
-        title: "D4 Oscar Coddron",
+        title: "Oscar Coddron",
         date:  "1907",
         pitch: -9.4, yaw: 71.6,
         zoom: 35,
@@ -427,8 +427,8 @@ const HOTSPOTS = [
           links: ["D10"],
       },
       {
-        id:    "hotspot-1774181854226",
-        title: "D5 Pol Dom",
+        id:    "D5",
+        title: "Pol Dom",
         date:  "1907",
         pitch: -9.1, yaw: 82,
         zoom: 35,
@@ -437,7 +437,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D6",
-        title: "D6 Philippe Swyncop",
+        title: "Philippe Swyncop",
         date:  "1907",
         pitch: -7.9, yaw: 90.8,
         zoom: 20,
@@ -446,7 +446,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D7",
-        title: "D7 Arthur Navez ",
+        title: "Arthur Navez ",
         date:  "1907",
         pitch: -3.4, yaw: 108,
         zoom: 20,
@@ -455,7 +455,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D8",
-        title: "D8 Jean Colin",
+        title: "Jean Colin",
         date:  "1910",
         pitch: 13.3, yaw: 51,
         zoom: 20,
@@ -463,7 +463,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D9",
-        title: "D9 Arthur Navez?",
+        title: "Arthur Navez?",
         date:  "1910",
         pitch: 20.1, yaw: 57.2,
         zoom: 35,
@@ -472,7 +472,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D10",
-        title: "D10  JOscar Coddron? ",
+        title: "Oscar Coddron? ",
         date:  "1910",
         pitch: 13.7, yaw: 65.4,
         zoom: 35,
@@ -481,7 +481,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D11",
-        title: "D11  Jan Van Puyenbroeck",
+        title: "Jan Van Puyenbroeck",
         date:  "1910",
         pitch: 20.9, yaw: 74.8,
         zoom: 35,
@@ -489,7 +489,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D12",
-        title: "D12 Louis Buisseret",
+        title: "Louis Buisseret",
         date:  "1910",
         pitch: 8.5, yaw: 87.6,
         zoom: 20,
@@ -497,7 +497,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D13",
-        title: "D13 Emiel Vermeersch",
+        title: "Emiel Vermeersch",
         date:  "1910",
         pitch: 22.4, yaw: 89.4,
         zoom: 35,
@@ -505,7 +505,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D14",
-        title: "D14 Joe English",
+        title: "Joe English",
         date:  "1910",
         pitch: 20.2, yaw: 108.6,
         zoom: 20,
@@ -514,7 +514,7 @@ const HOTSPOTS = [
       },
       {
         id:    "D15",links: ["B1", "D3"],
-        title: "D15 Victor Regnart ?",
+        title: "Victor Regnart?",
         date:  "1910",
         pitch: 21.7, yaw: 117.2,
         zoom: 20,
@@ -523,7 +523,7 @@ const HOTSPOTS = [
       },
       {
         type: "inscription",
-        id:    "inscription-1774182291805",
+        id:    "T5",
         title: "T5 Da zal wel kunne zijn",
         date:  "1910",
         corners: [[53.34, 10.33], [61.08, 10.33], [61.08, 6.86], [53.34, 6.86]],
