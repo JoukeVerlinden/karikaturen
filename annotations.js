@@ -221,6 +221,14 @@ const HOTSPOTS = [
         zoom: 20,
         content: `Geboren in 1884 in Gent. Opleiding in Gent. Deelnames: 1910 (26j) – 1913 (29j). Finalist in 1913. 1913: Eervolle vermelding.`,
       },
+  {
+        id:    "A13",
+        title: "A13 Alfred Moitroux",
+        date:  "1913",
+        pitch: 14.8, yaw: 293.5,
+        zoom: 20,
+        content: `Geboren in 1886 in Binche. Opleiding in Bergen en Brussel. Deelname: 1913 (26j). Finalist in 1913.`,
+      },
         {
         type: "inscription",
         id:    "inscription-1774182436495",
