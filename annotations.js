@@ -15,7 +15,7 @@ const SITE_CONFIG = {
   panelLabel:   "Details",
   panelHeading: "Historische Karikaturen en graffiti",
   panelMeta:    "43 gegevens \u00b7 circa 1904 – 1910",
-  panoramaFile: "theroom1.jpg",  // default panorama loaded on startup
+  panoramaFile: "theroom2.jpg",  // default panorama loaded on startup
   defaultYaw:   360,               // starting horizontal angle in degrees
   defaultPitch: 0,               // starting vertical angle in degrees
   defaultZoom:  90,              // starting FOV in degrees (20–120)
