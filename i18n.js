@@ -350,6 +350,8 @@ async function applyLanguage(targetLang) {
   if (targetLang === 'nl') {
     syncDynamicLabels('nl');
     syncTopbarLang('nl');
+    // Remove any injected machine-translation divs from inscription blocks
+    document.querySelectorAll('.inscription-i18n').forEach(el => el.remove());
     return;
   }
 
@@ -395,6 +397,12 @@ async function applyLanguage(targetLang) {
     await syncDynamicLabels(targetLang);
     syncTopbarLang(targetLang);
 
+    // Step 5d — inject live machine-translation of each inscription transcription.
+    // The .inscription-transcription div itself is NEVER touched (original wall text
+    // stays verbatim in Dutch). Instead we inject a .inscription-i18n div directly
+    // below it, showing the translated text in the active language.
+    await syncInscriptionTranslations(targetLang);
+
   } catch (err) {
     console.error('[i18n] Fatal:', err);
     failed = true;
@@ -424,6 +432,64 @@ async function applyLanguage(targetLang) {
       await applyLanguage(next);
     }
   }
+}
+
+/**
+ * For every inscription block in the panel, inject (or refresh) a
+ * .inscription-i18n div that shows the transcription translated into
+ * targetLang. The original .inscription-transcription is never modified.
+ *
+ * Strategy:
+ *  - Extract plain text from the transcription lines (strip .line-num spans).
+ *  - Translate with the normal translateText() pipeline (cached).
+ *  - Insert the result as a new labelled block directly after the transcription.
+ *
+ * Label localisation — "Translation" in each supported language:
+ *   en → Translation  fr → Traduction  zh → 翻译
+ *
+ * @param {string} targetLang
+ */
+async function syncInscriptionTranslations(targetLang) {
+  // Label for the injected block in each target language
+  const LABELS = { en: 'Translation', fr: 'Traduction', zh: '翻译' };
+  const label = LABELS[targetLang] || 'Translation';
+
+  // Remove stale injections from a previous language switch first
+  document.querySelectorAll('.inscription-i18n').forEach(el => el.remove());
+
+  const blocks = document.querySelectorAll('.inscription-block');
+  await Promise.all(Array.from(blocks).map(async block => {
+    const transcEl = block.querySelector('.inscription-transcription');
+    if (!transcEl) return;
+
+    // Collect the plain text of each line, skipping the .line-num counter span.
+    // We join lines with " / " so the translator sees a coherent sentence rather
+    // than an abrupt newline that some APIs interpret as separate sentences.
+    const lines = Array.from(transcEl.querySelectorAll('.line')).map(lineEl => {
+      // Clone the line, remove the line-num span, return remaining text
+      const clone = lineEl.cloneNode(true);
+      clone.querySelectorAll('.line-num').forEach(n => n.remove());
+      return clone.textContent.trim();
+    }).filter(Boolean);
+
+    if (!lines.length) return;
+    const sourceText = lines.join(' / ');
+
+    // Translate — result comes from cache if this transcription was already
+    // translated during the current session
+    const translated = await translateText(sourceText, targetLang);
+
+    // Build the injected div
+    const div = document.createElement('div');
+    div.className = 'inscription-i18n';
+    div.innerHTML =
+      `<span class="inscription-i18n-label">${label}</span>` +
+      `<span class="inscription-i18n-text">${translated}</span>`;
+
+    // Insert directly after the transcription (before any existing
+    // .inscription-translation authored note, if present)
+    transcEl.insertAdjacentElement('afterend', div);
+  }));
 }
 
 /**
@@ -711,6 +777,36 @@ function injectStyles() {
     #i18n-toast.out { animation: i18n-toast-out 0.28s ease forwards; }
     @keyframes i18n-toast-in  { from{opacity:0;transform:translateX(-50%) translateY(8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
     @keyframes i18n-toast-out { from{opacity:1} to{opacity:0;transform:translateX(-50%) translateY(6px)} }
+
+    /* ─── Injected inscription translation block ──────────────────── */
+
+    .inscription-i18n {
+      margin: 0;
+      padding: 8px 10px 10px;
+      border-top: 1px solid var(--ua-teal-light, #C8D9D8);
+      border-left: 2px solid var(--ua-teal, #82A1AD);
+      background: rgba(130,161,173,0.06);
+    }
+
+    .inscription-i18n-label {
+      display: block;
+      font-family: var(--sans, 'Source Sans 3', Arial, sans-serif);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ua-teal-dark, #5c7e8a);
+      margin-bottom: 4px;
+    }
+
+    .inscription-i18n-text {
+      display: block;
+      font-family: var(--sans, 'Source Sans 3', Arial, sans-serif);
+      font-size: 12.5px;
+      font-style: italic;
+      line-height: 1.65;
+      color: var(--ua-text-soft, #4a5568);
+    }
   `;
   document.head.appendChild(s);
 }
