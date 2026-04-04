@@ -89,8 +89,9 @@ const LEAF_SELECTORS = [
   '.era-label',
   // Annotation entries
   '.entry-title', '.entry-date', '.entry-body > p',
-  // Inscription blocks
-  '.inscription-transcription', '.inscription-translation',
+  // Inscription blocks — transcriptions are kept verbatim (original wall text);
+  // only the translation note below the transcription is translated.
+  '.inscription-translation',
   // Viewer hint
   '#viewer-hint',
 ];
@@ -738,7 +739,7 @@ const I18n = {
   stampSubtree(root) {
     if (!root) return;
     ['.entry-title', '.entry-date', '.entry-body > p',
-     '.inscription-transcription', '.inscription-translation'].forEach(sel => {
+     '.inscription-translation'].forEach(sel => {
       root.querySelectorAll(sel).forEach(el => stamp(el));
     });
     if (_lang !== 'nl') {

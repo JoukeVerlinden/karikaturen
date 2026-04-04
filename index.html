@@ -960,6 +960,21 @@
     #btn-toggle-panel { display: none; }
     .ctrl-btn { font-size: 10px; padding: 4px 10px; }
 
+    /* ── Autoplay button: strip the ⟳ icon on mobile to save space ── */
+    /* Uses the same font-size:0 / ::before trick as .era-btn */
+    #btn-autoplay { font-size: 0; padding: 4px 10px; }
+    #btn-autoplay::before {
+      font-size: 10px;
+      font-family: var(--sans);
+      letter-spacing: 0.04em;
+      /* Show only the text part — strip leading icon character (⟳ or ⏹) */
+      content: attr(data-mobile-label);
+    }
+
+    /* ── Language selector: hide flag/label pill, show compact <select> ── */
+    #i18n-btns  { display: none !important; }
+    #i18n-lang  { display: block !important; }
+
     /* ── Panel header — minimal ── */
     #panel-header { padding: 8px 14px 6px; }
     #panel-header .label { display: none; }
@@ -1287,7 +1302,7 @@
     <div id="era-switcher">
       <span class="era-label">Tijdvak</span>
     </div>
-    <button class="ctrl-btn" id="btn-autoplay">⟳ Rondleiding</button>
+    <button class="ctrl-btn" id="btn-autoplay" data-mobile-label="Tour">⟳ Rondleiding</button>
     <button class="ctrl-btn" id="btn-toggle-panel">Details ◧</button>
     <button id="btn-info" title="Over dit project">ⓘ</button>
   </div>
@@ -2349,7 +2364,9 @@ function startAutoTour() {
   // Use translated label if i18n module has provided one; fallback to Dutch.
   const stopLabel = (window._i18nLabels && window._i18nLabels.autoplayStop)
     ? window._i18nLabels.autoplayStop : '⏹ Stop';
-  document.getElementById('btn-autoplay').textContent = stopLabel;
+  const btn = document.getElementById('btn-autoplay');
+  btn.textContent = stopLabel;
+  btn.dataset.mobileLabel = 'Stop';   // mobile ::before content (no icon)
   const pool = visibleHotspots();
   if (pool.length === 0) { stopAutoTour(); return; }
   // Start from the annotation AFTER the currently active one within the visible pool
@@ -2367,7 +2384,9 @@ function stopAutoTour() {
   // Use translated label if available; fallback to Dutch.
   const startLabel = (window._i18nLabels && window._i18nLabels.autoplayStart)
     ? window._i18nLabels.autoplayStart : '⟳ Rondleiding';
-  document.getElementById('btn-autoplay').textContent = startLabel;
+  const btn = document.getElementById('btn-autoplay');
+  btn.textContent = startLabel;
+  btn.dataset.mobileLabel = 'Tour';   // mobile ::before content (no icon)
 }
 function runAutoTour() {
   if (!autoTour) return;
