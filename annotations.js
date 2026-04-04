@@ -380,7 +380,7 @@ const HOTSPOTS = [
       },
   {
         type: "inscription",
-        id:    "T5",
+        id:    "T5A",
         title: "Vriendelijk verzocht",
         date:  "1901",
         corners: [[18.65, 1.54], [45.16, 1.54], [45.16, -0.26], [18.65, -0.26]],
