@@ -1520,6 +1520,9 @@
 <!-- Annotations data — synchronous so HOTSPOTS/SITE_CONFIG are ready for init() -->
 <script src="annotations.js"></script>
 
+<!-- i18n translation layer — loaded after annotations, before main viewer script -->
+<script src="i18n.js"></script>
+
 
 <script>
 // ═══════════════════════════════════════════════════════
@@ -2261,6 +2264,14 @@ function buildPanel() {
     });
 
     list.appendChild(entry);
+
+    // i18n: stamp newly created entry's translatable children with their Dutch source.
+    // This must happen AFTER appendChild so the element is in the DOM.
+    // If I18n is not yet initialised (first load) stampSubtree is a no-op at init
+    // time; I18n.init() will stamp everything in one pass after buildPanel() returns.
+    if (typeof I18n !== 'undefined' && I18n.currentLang !== undefined) {
+      I18n.stampSubtree(entry);
+    }
   });
 }
 
@@ -2335,7 +2346,10 @@ function visibleHotspots() {
 
 function startAutoTour() {
   autoTour = true;
-  document.getElementById('btn-autoplay').textContent = '⏹ Stop';
+  // Use translated label if i18n module has provided one; fallback to Dutch.
+  const stopLabel = (window._i18nLabels && window._i18nLabels.autoplayStop)
+    ? window._i18nLabels.autoplayStop : '⏹ Stop';
+  document.getElementById('btn-autoplay').textContent = stopLabel;
   const pool = visibleHotspots();
   if (pool.length === 0) { stopAutoTour(); return; }
   // Start from the annotation AFTER the currently active one within the visible pool
@@ -2350,7 +2364,10 @@ function startAutoTour() {
 }
 function stopAutoTour() {
   autoTour = false; clearTimeout(autoTourTimer);
-  document.getElementById('btn-autoplay').textContent = '⟳ Rondleiding';
+  // Use translated label if available; fallback to Dutch.
+  const startLabel = (window._i18nLabels && window._i18nLabels.autoplayStart)
+    ? window._i18nLabels.autoplayStart : '⟳ Rondleiding';
+  document.getElementById('btn-autoplay').textContent = startLabel;
 }
 function runAutoTour() {
   if (!autoTour) return;
@@ -2372,8 +2389,12 @@ document.getElementById('btn-toggle-panel').addEventListener('click', () => {
   panelVisible = !panelVisible;
   panel.style.display = panelVisible ? '' : 'none';
   div.style.display   = panelVisible ? '' : 'none';
-  document.getElementById('btn-toggle-panel').textContent =
-    panelVisible ? 'Details ◧' : 'Details ◨';
+  // Use translated labels if the i18n module has provided them
+  const _showLbl = (window._i18nLabels && window._i18nLabels.panelShow)
+    ? window._i18nLabels.panelShow : 'Details ▧';
+  const _hideLbl = (window._i18nLabels && window._i18nLabels.panelHide)
+    ? window._i18nLabels.panelHide : 'Details ▨';
+  document.getElementById('btn-toggle-panel').textContent = panelVisible ? _showLbl : _hideLbl;
  // Canvas width changed — resize backing buffer and force redraw
   requestAnimationFrame(() => { resizeCanvas(); panoDirty = true; scheduleTick(true); });
 });
@@ -2516,6 +2537,11 @@ function init() {
   const _initScene = _initScenes[1] || _initScenes[0];
   if (_initScene) applySceneFilter(_initScene.year);
   scheduleTick(true);
+
+  // ── i18n: stamp all Dutch source nodes and mount the language selector ──
+  // Called here — after buildPanel(), buildHotspots(), buildEraSwitcher() —
+  // so every translatable element already has its Dutch innerHTML in the DOM.
+  if (typeof I18n !== 'undefined') I18n.init();
 
   // Dismiss loading screen as soon as the panorama texture is ready,
   // with a short minimum so the progress bar animation completes.
@@ -2710,7 +2736,13 @@ function applySceneFilter(sceneYear) {
     const cfg = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
     const scene = (cfg.scenes || [])[currentSceneIndex];
     const yearLabel = scene ? scene.label : '';
-    metaEl.textContent = visibleCount + ' gegevens zichtbaar · ' + yearLabel;
+    const nlMeta = visibleCount + ' gegevens zichtbaar · ' + yearLabel;
+    metaEl.textContent = nlMeta;
+    // Re-stamp with updated Dutch text so I18n can re-translate if needed
+    metaEl.setAttribute('data-nl', nlMeta);
+    if (typeof I18n !== 'undefined' && I18n.currentLang && I18n.currentLang !== 'nl') {
+      I18n.stampSubtree(metaEl.parentElement || metaEl);
+    }
   }
 }
 
