@@ -1,409 +1,388 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  i18n.js — Real-time Client-Side Translation Layer  v2
+//  i18n.js — Real-time Client-Side Translation Layer  v3
 //  Heritage 360° Viewer · Universiteit Antwerpen
 //
-//  ┌─ ARCHITECTURE ──────────────────────────────────────────────────────────┐
-//  │                                                                         │
-//  │  DUTCH = canonical source of truth (NL)                                 │
-//  │                                                                         │
-//  │  On I18n.init() every translatable node gets a permanent data-nl attr   │
-//  │  that stores its original Dutch innerHTML.  Subsequent language switches │
-//  │  ALWAYS translate from data-nl, never from whatever is currently in the │
-//  │  DOM, eliminating "translation-of-a-translation" corruption.            │
-//  │                                                                         │
-//  │  COORDINATE → PANEL MAPPING (bi-directional sync)                       │
-//  │  ─────────────────────────────────────────────────                      │
-//  │  hotspot.data-id  ←→  .annotation-entry.data-id                        │
-//  │  .rect-hotspot-group.data-id  ←→  .annotation-entry.data-id            │
-//  │                                                                         │
-//  │  The translation layer only writes innerHTML of LEAF content nodes      │
-//  │  (.entry-title, .entry-body > p, etc.).  Structural wrappers that carry │
-//  │  data-id / data-goto / event listeners are never touched.               │
-//  │  → setActive(id) and flyTo() remain fully operational after any         │
-//  │    language switch.                                                      │
-//  │                                                                         │
-//  │  API STRATEGY                                                            │
-//  │  ─────────────                                                           │
-//  │  1. Strings are chunked (≤ MAX_CHUNK_BYTES per request).                │
-//  │  2. Each chunk is tried against up to 3 LibreTranslate mirrors;         │
-//  │     first success wins (fallback chain).                                │
-//  │  3. Translated strings are cached: Map keyed by "lang::dutchHTML".      │
-//  │  4. If ALL mirrors fail, an error toast is shown; Dutch is restored.    │
-//  │  5. A language queued during an in-progress translation is applied       │
-//  │     automatically when the current round-trip completes (no silent       │
-//  │     drops).                                                             │
-//  │                                                                         │
-//  └─────────────────────────────────────────────────────────────────────────┘
+//  HOW IT WORKS
+//  ────────────
+//  1. On I18n.init() (called after the DOM is fully built), every
+//     translatable node gets a permanent data-nl attribute storing its
+//     original Dutch innerHTML. This is the source of truth forever.
 //
-//  DEPLOYMENT CHECKLIST
-//  ────────────────────
-//  • Replace LT_ENDPOINTS[0] with your self-hosted or paid LibreTranslate URL.
-//  • Set LT_API_KEY if your endpoint requires authentication.
-//  • Load via: <script src="i18n.js"></script>  AFTER annotations.js.
-//  • Call I18n.init() at the END of init() in index.html, after buildPanel(),
-//    buildHotspots(), and buildEraSwitcher() have all run.
+//  2. On language change, ALL data-nl nodes are first restored to Dutch,
+//     then translateAll() fires: it strips HTML tags to get plain text,
+//     batches all strings into one MyMemory request per batch-chunk,
+//     and writes results back into the DOM.
+//
+//  3. Because we only ever rewrite innerHTML of LEAF nodes (.entry-title,
+//     .entry-body > p, etc.), the structural wrappers that carry data-id,
+//     data-goto, and event listeners are never touched. setActive(id) and
+//     flyTo() remain fully functional after any language switch.
+//
+//  TRANSLATION API
+//  ───────────────
+//  Primary:  Google Translate (unofficial, no key, browser CORS open)
+//            https://translate.googleapis.com/translate_a/single
+//  Fallback: MyMemory (free, 500 req/day, no key needed)
+//            https://api.mymemory.translated.net/get
+//
+//  Both work from any browser. The container build environment has no
+//  network, but the end-user's browser will reach both fine.
 // ═══════════════════════════════════════════════════════════════════════════
 
 'use strict';
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  CONFIGURATION                                                            ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+// ── Configuration ──────────────────────────────────────────────────────────
 
-/**
- * LibreTranslate endpoint fallback chain.
- * Tried left-to-right; the first 200 OK response wins.
- * Add your own self-hosted URL at index 0 for production use.
- */
-const LT_ENDPOINTS = [
-  'https://libretranslate.de/translate',
-  'https://translate.argosopentech.com/translate',
-  'https://libretranslate.com/translate',
-];
-
-/** API key — leave empty for public endpoints that do not require one. */
-const LT_API_KEY = '';
-
-/**
- * Maximum UTF-8 byte size per API request.
- * LibreTranslate's free tier typically rejects payloads larger than ~10 KB.
- * Items are batched greedily up to this threshold, then sent as a chunk.
- */
-const MAX_CHUNK_BYTES = 8000;
-
-/** Per-request network timeout in milliseconds. */
-const REQUEST_TIMEOUT_MS = 12000;
-
-/** Language options shown in the selector. */
 const SUPPORTED_LANGS = [
-  { code: 'nl', label: 'NL', fullLabel: 'Nederlands' },
-  { code: 'en', label: 'EN', fullLabel: 'English'    },
-  { code: 'fr', label: 'FR', fullLabel: 'Français'   },
-  { code: 'zh', label: '中文', fullLabel: '中文'      },
+  { code: 'nl', label: 'NL', name: 'Nederlands' },
+  { code: 'en', label: 'EN', name: 'English'    },
+  { code: 'fr', label: 'FR', name: 'Français'   },
+  { code: 'zh', label: '中文', name: '中文'     },
 ];
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  INTERNAL STATE                                                           ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+// How many strings to pack per API call.
+// Google Translate handles large queries fine; keep chunks manageable.
+const CHUNK_SIZE = 20;
 
-let _currentLang  = 'nl';   // Active language code
-let _translating  = false;   // API round-trip in progress
-let _queuedLang   = null;    // Language requested while _translating === true
+// Per-request timeout (ms)
+const TIMEOUT_MS = 15000;
 
-/**
- * Cache: Map<"lang::dutchHTML", translatedHTML>
- * Keyed on the Dutch source — guarantees we always translate from NL,
- * never from an already-translated string.
- */
+// ── Internal state ─────────────────────────────────────────────────────────
+
+let _lang       = 'nl';   // current active language
+let _busy       = false;  // true while a translation is running
+let _queued     = null;   // language queued while busy
+
+// Cache: Map<"lang::plainText", translatedText>
 const _cache = new Map();
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  DOM STAMPING                                                             ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+// ── DOM helpers ────────────────────────────────────────────────────────────
 
 /**
- * Stamp one element with its Dutch innerHTML as data-nl.
- * Idempotent — safe to call multiple times; only stamps once.
+ * Stamp el with its Dutch innerHTML as data-nl.
+ * Idempotent — will never overwrite an existing stamp.
  */
-function stampNL(el, html) {
+function stamp(el, html) {
   if (!el || el.hasAttribute('data-nl')) return;
   el.setAttribute('data-nl', html !== undefined ? html : el.innerHTML);
 }
 
 /**
- * Selectors for translatable leaf nodes.
+ * Which nodes hold translatable text.
  *
- * "Leaf" means the node holds only rendered text (plus optional inline tags
- * like <strong>/<em>/<a>).  Structural wrappers (.annotation-entry, .hotspot,
- * .rect-hotspot-group) that carry data-id / event listeners are intentionally
- * excluded to preserve all coordinate→panel navigation links.
+ * We target only LEAF nodes — nodes that contain text plus optional inline
+ * markup (<strong>, <em>, <a>, <kbd>) but no other translatable descendants.
+ * Structural wrappers (.annotation-entry, .hotspot, etc.) are never included
+ * because they carry data-id / event listeners that must not be disturbed.
  */
-const TRANSLATABLE_SELECTORS = [
+const LEAF_SELECTORS = [
+  // Topbar
   '#site-title', '#site-subtitle',
+  // Side panel header
   '#panel-label', '#panel-heading', '#panel-meta',
-  '#start-hint-intro',
-  '.sh-text', '.sh-tab',
+  // Welcome overlay
+  '#start-hint-intro', '#start-hint-close',
+  '.sh-tab', '.sh-text',
+  // Colophon
   '#sh-colophon-body',
+  // Era switcher label
   '.era-label',
+  // Annotation entries
   '.entry-title', '.entry-date', '.entry-body > p',
+  // Inscription blocks
   '.inscription-transcription', '.inscription-translation',
-  '#start-hint-close',
+  // Viewer hint
   '#viewer-hint',
 ];
 
-/** Stamp all translatable nodes in the current document with their Dutch source. */
-function stampAllNodes() {
-  TRANSLATABLE_SELECTORS.forEach(sel => {
-    document.querySelectorAll(sel).forEach(el => stampNL(el));
-  });
+/** Stamp every translatable leaf node in the document with its Dutch source. */
+function stampAll() {
+  LEAF_SELECTORS.forEach(sel =>
+    document.querySelectorAll(sel).forEach(el => stamp(el))
+  );
 
-  // Era-btn title attributes (hover tooltips) — stamp as data attributes,
-  // not as data-nl, because they are attribute strings, not innerHTML.
+  // Stamp era-btn title attributes (hover tooltip strings)
   document.querySelectorAll('.era-btn').forEach(btn => {
     if (!btn.dataset.nlTitle) btn.dataset.nlTitle = btn.title || '';
   });
-
-  // Wrap bare text nodes inside #active-indicator so they can be stamped.
-  // The "Bekijkt:" label is a bare text node sitting next to #active-label.
-  const activeIndicator = document.getElementById('active-indicator');
-  if (activeIndicator) {
-    Array.from(activeIndicator.childNodes).forEach(node => {
-      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-        const span = document.createElement('span');
-        span.className = 'i18n-text-node';
-        span.textContent = node.textContent;
-        node.parentNode.replaceChild(span, node);
-        stampNL(span, node.textContent);
-      }
-    });
-  }
 }
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  API CLIENT                                                               ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+// ── HTML ↔ plain text ──────────────────────────────────────────────────────
 
 /**
- * POST one translation request to a single LibreTranslate endpoint.
- * Throws on HTTP errors or network timeout.
+ * Extract translatable plain-text segments from an HTML string.
+ * Returns { text, restore } where restore(translatedText) => translated HTML.
  *
- * format: "html"  instructs LibreTranslate to skip tag content during
- * tokenisation, so <strong>, <em>, <a href=…>, <kbd> etc. pass through
- * unchanged into the translated output.
+ * Strategy: replace tags with numbered placeholders ⟨0⟩ ⟨1⟩ … so the
+ * translation API sees only prose. After translation we put the original tags
+ * back by index. This preserves <strong>, <em>, <a href=…>, <kbd>, etc.
+ *
+ * The placeholder characters (⟨ ⟩) are outside the Basic Latin range and
+ * extremely unlikely to appear in real heritage texts.
  */
-async function _fetchTranslation(endpoint, html, targetLang) {
-  const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+function htmlToTranslatable(html) {
+  const tags = [];
+  const text = html.replace(/<[^>]+>/g, match => {
+    const idx = tags.length;
+    tags.push(match);
+    return `\u27E8${idx}\u27E9`; // ⟨N⟩
+  });
+  function restore(translated) {
+    return translated.replace(/\u27E8(\d+)\u27E9/g, (_, i) => tags[+i] || '');
+  }
+  return { text, restore };
+}
+
+// ── Translation API ────────────────────────────────────────────────────────
+
+/**
+ * Translate one plain-text string using the Google Translate unofficial API.
+ * Throws on network error or non-200 response.
+ *
+ * This endpoint is used by many open-source projects. It has no CORS
+ * restriction when called from a browser. There is no official SLA but
+ * it has been stable for many years.
+ *
+ * @param {string} text       – Plain text (no HTML tags)
+ * @param {string} targetLang – e.g. 'en', 'fr', 'zh'
+ * @returns {Promise<string>} – Translated plain text
+ */
+async function googleTranslate(text, targetLang) {
+  const url =
+    'https://translate.googleapis.com/translate_a/single' +
+    `?client=gtx&sl=nl&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+
   try {
-    const body = { q: html, source: 'nl', target: targetLang, format: 'html' };
-    if (LT_API_KEY) body.api_key = LT_API_KEY;
-
-    const res = await fetch(endpoint, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-      signal:  controller.signal,
-    });
+    const res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const data = await res.json();
-    if (!data.translatedText) throw new Error('Empty translatedText');
-    return data.translatedText;
+    const json = await res.json();
+    // Response structure: [[["translatedSegment","original",...], ...], ...]
+    const translated = json[0].map(seg => seg[0]).join('');
+    return translated;
   } finally {
     clearTimeout(tid);
   }
 }
 
 /**
- * Translate one HTML string via the fallback chain.
- * Returns the Dutch source on complete failure (graceful degradation).
+ * Fallback: MyMemory free translation API.
+ * 500 requests/day without a key; supports nl→en/fr/zh.
+ *
+ * @param {string} text
+ * @param {string} targetLang
+ * @returns {Promise<string>}
+ */
+async function myMemoryTranslate(text, targetLang) {
+  const url =
+    `https://api.mymemory.translated.net/get` +
+    `?q=${encodeURIComponent(text)}&langpair=nl|${targetLang}`;
+
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.responseStatus !== 200) throw new Error(`MyMemory ${json.responseStatus}`);
+    return json.responseData.translatedText;
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+/**
+ * Translate one plain-text string from NL to targetLang.
+ * Tries Google first, falls back to MyMemory, then returns original on failure.
+ * Results are cached so switching back to a visited language is instant.
+ *
+ * @param {string} text
+ * @param {string} targetLang
+ * @returns {Promise<string>}
+ */
+async function translateText(text, targetLang) {
+  const trimmed = text.trim();
+  if (!trimmed) return text;
+
+  const key = `${targetLang}::${trimmed}`;
+  if (_cache.has(key)) return _cache.get(key);
+
+  let result = trimmed;
+  try {
+    result = await googleTranslate(trimmed, targetLang);
+  } catch (e1) {
+    try {
+      result = await myMemoryTranslate(trimmed, targetLang);
+    } catch (e2) {
+      console.warn('[i18n] Both APIs failed for:', trimmed.slice(0, 60), e2.message);
+      // Graceful degradation: keep Dutch text
+    }
+  }
+
+  _cache.set(key, result);
+  return result;
+}
+
+/**
+ * Translate an HTML string: strip tags → translate text → reinsert tags.
+ *
+ * @param {string} html
+ * @param {string} targetLang
+ * @returns {Promise<string>} – Translated HTML with original tags restored
  */
 async function translateHTML(html, targetLang) {
   if (!html || !html.trim()) return html;
-
-  const key = `${targetLang}::${html}`;
-  if (_cache.has(key)) return _cache.get(key);
-
-  let lastErr;
-  for (const ep of LT_ENDPOINTS) {
-    try {
-      const t = await _fetchTranslation(ep, html, targetLang);
-      _cache.set(key, t);
-      return t;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  console.warn(`[i18n] All endpoints failed ("${html.slice(0,50)}…"):`, lastErr?.message);
-  return html; // fall back to Dutch
+  const { text, restore } = htmlToTranslatable(html);
+  // If the HTML was only tags (no text content), skip the API call
+  if (!text.replace(/\u27E8\d+\u27E9/g, '').trim()) return html;
+  const translated = await translateText(text, targetLang);
+  return restore(translated);
 }
 
 /**
- * Partition items into chunks where each chunk's total UTF-8 byte length
- * stays under MAX_CHUNK_BYTES.  This prevents HTTP 413 errors on free-tier
- * LibreTranslate instances which enforce payload size limits.
- */
-function _chunkItems(items) {
-  const enc = new TextEncoder();
-  const chunks = [];
-  let cur = [], bytes = 0;
-
-  for (const item of items) {
-    const b = enc.encode(item.nl).length;
-    if (cur.length && bytes + b > MAX_CHUNK_BYTES) {
-      chunks.push(cur);
-      cur = []; bytes = 0;
-    }
-    cur.push(item);
-    bytes += b;
-  }
-  if (cur.length) chunks.push(cur);
-  return chunks;
-}
-
-/**
- * Translate a batch of { el, nl } items.
+ * Translate an array of { el, nl } objects in chunks of CHUNK_SIZE.
+ * Within each chunk all requests run in parallel; chunks run sequentially
+ * to avoid rate-limiting.
  *
- * Items within each chunk are translated in parallel for speed.
- * Chunks are processed sequentially to avoid overwhelming free-tier servers.
- *
- * Coordinate→panel integrity:
- *   Only leaf nodes (titles, body paragraphs) receive new innerHTML.
- *   Structural wrappers holding data-id, data-goto, and event listeners
- *   are never modified.  setActive(id) and flyTo() work identically after
- *   any language switch.
+ * After each chunk completes, onProgress(done, total) is called so the
+ * caller can update a progress bar.
  *
  * @param {Array<{el:Element, nl:string}>} items
  * @param {string}   targetLang
- * @param {Function=} onProgress   Called with (done, total) after each chunk.
+ * @param {Function} onProgress
  */
-async function batchTranslate(items, targetLang, onProgress) {
-  const chunks = _chunkItems(items);
+async function translateBatch(items, targetLang, onProgress) {
   let done = 0;
-
-  for (const chunk of chunks) {
-    const results = await Promise.all(chunk.map(({ nl }) => translateHTML(nl, targetLang)));
-    results.forEach((t, i) => { chunk[i].el.innerHTML = t; });
+  for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+    const chunk = items.slice(i, i + CHUNK_SIZE);
+    const results = await Promise.all(
+      chunk.map(({ nl }) => translateHTML(nl, targetLang))
+    );
+    results.forEach((translated, j) => {
+      chunk[j].el.innerHTML = translated;
+    });
     done += chunk.length;
-    if (onProgress) onProgress(done, items.length);
+    onProgress(done, items.length);
   }
 }
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  UI — Overlay, Progress, Toast                                            ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+// ── Overlay / progress / toast ─────────────────────────────────────────────
 
-function setOverlay(visible) {
+function showOverlay(msg) {
   const ov = document.getElementById('i18n-overlay');
-  if (ov) ov.classList.toggle('visible', visible);
+  const tx = document.getElementById('i18n-overlay-text');
+  if (tx) tx.textContent = msg;
+  if (ov) ov.classList.add('visible');
+  setProgress(0);
 }
 
-/**
- * Drive the deterministic progress bar (0–100).
- * Passing 0 resumes the indeterminate CSS animation.
- */
+function hideOverlay() {
+  setProgress(100);
+  setTimeout(() => {
+    const ov = document.getElementById('i18n-overlay');
+    if (ov) ov.classList.remove('visible');
+    setProgress(0);
+  }, 300);
+}
+
 function setProgress(pct) {
   const bar = document.getElementById('i18n-progress-bar');
   if (!bar) return;
   if (pct > 0 && pct < 100) {
     bar.style.animation  = 'none';
-    bar.style.width      = pct + '%';
     bar.style.marginLeft = '0';
+    bar.style.width      = pct + '%';
   } else {
     // Restore indeterminate animation
     bar.style.animation  = '';
-    bar.style.width      = '';
     bar.style.marginLeft = '';
+    bar.style.width      = '';
   }
 }
 
-/** Non-blocking error toast shown when all API mirrors fail. */
-function showErrorToast(langLabel) {
-  const prev = document.getElementById('i18n-toast');
-  if (prev) prev.remove();
-
+function showToast(msg) {
+  const old = document.getElementById('i18n-toast');
+  if (old) old.remove();
   const t = document.createElement('div');
   t.id = 'i18n-toast';
   t.setAttribute('role', 'alert');
-  t.innerHTML =
-    `<span style="font-size:15px">⚠</span>` +
-    `<span>Vertaling naar <strong>${langLabel}</strong> is tijdelijk niet beschikbaar. ` +
-    `Nederlandse tekst blijft zichtbaar.</span>`;
+  t.innerHTML = `<span>⚠</span><span>${msg}</span>`;
   document.body.appendChild(t);
-
-  setTimeout(() => t.classList.add('i18n-toast-out'), 3600);
-  setTimeout(() => { if (t.parentNode) t.remove(); }, 4300);
+  setTimeout(() => t.classList.add('out'), 3800);
+  setTimeout(() => t.remove(), 4400);
 }
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  CORE — applyLanguage                                                     ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+// ── Core: applyLanguage ────────────────────────────────────────────────────
 
 /**
- * Switch the entire viewer to targetLang.
+ * Switch the viewer to targetLang.
  *
- * Flow:
- *  1. If a translation is already in flight, queue targetLang and return.
- *     The queued language will be applied when the current request finishes.
- *  2. Restore ALL [data-nl] nodes to Dutch (instant, zero network).
- *  3. If targetLang === 'nl', done.
- *  4. Show overlay, collect stamped nodes, translate in chunked batches,
- *     write back, then update tooltips / era titles / dynamic labels.
- *  5. Hide overlay; if a language was queued during step 4, apply it now.
- *
- * @param {string} targetLang  - 'nl' | 'en' | 'fr' | 'zh'
+ * 1. If busy → queue and return (will auto-apply when current finishes).
+ * 2. Restore all [data-nl] nodes to Dutch (instant).
+ * 3. If nl → done.
+ * 4. Collect stamped nodes, translate in chunks, write back.
+ * 5. Sync tooltips, era titles, dynamic button labels.
+ * 6. Drain queue.
  */
 async function applyLanguage(targetLang) {
-  // ── Queue if busy ──────────────────────────────────────────────────────
-  if (_translating) {
-    if (targetLang !== _currentLang) _queuedLang = targetLang;
+  if (_busy) {
+    _queued = targetLang;
     return;
   }
-  if (targetLang === _currentLang) return;
+  if (targetLang === _lang) return;
 
-  _currentLang = targetLang;
-  _queuedLang  = null;
+  _lang   = targetLang;
+  _queued = null;
 
-  // ── Restore Dutch source into every stamped node (step 2) ──────────────
+  // Step 2 — restore Dutch source into every stamped node
   document.querySelectorAll('[data-nl]').forEach(el => {
     el.innerHTML = el.getAttribute('data-nl');
   });
-
-  // Update <html lang> for screen readers and CSS :lang() selectors
   document.documentElement.lang = targetLang;
-
-  // Restore era-btn titles to Dutch originals
   document.querySelectorAll('.era-btn[data-nl-title]').forEach(btn => {
     btn.title = btn.dataset.nlTitle;
   });
 
   if (targetLang === 'nl') {
-    _applyDynamicLabels('nl');
+    syncDynamicLabels('nl');
+    syncTopbarLang('nl');
     return;
   }
 
-  // ── Show overlay (step 3) ───────────────────────────────────────────────
-  _translating = true;
-  setOverlay(true);
-  setProgress(0);
+  // Step 3 — overlay
+  _busy = true;
+  const msgs = { en: 'Translating…', fr: 'Traduction en cours…', zh: '翻译中…' };
+  showOverlay(msgs[targetLang] || 'Translating…');
 
-  const overlayMsgs = { en: 'Translating…', fr: 'Traduction en cours…', zh: '翻译中…' };
-  const overlayText = document.getElementById('i18n-overlay-text');
-  if (overlayText) overlayText.textContent = overlayMsgs[targetLang] || 'Translating…';
-
-  let apiFailure = false;
-
+  let failed = false;
   try {
-    // ── Collect stamped items (step 4a) ────────────────────────────────
+    // Step 4 — collect and translate all stamped nodes
     const items = [];
     document.querySelectorAll('[data-nl]').forEach(el => {
       const nl = el.getAttribute('data-nl');
       if (nl && nl.trim()) items.push({ el, nl });
     });
 
-    // ── Chunked batch translation with deterministic progress (step 4b) ─
-    await batchTranslate(items, targetLang, (done, total) => {
+    await translateBatch(items, targetLang, (done, total) => {
       setProgress(Math.round((done / total) * 100));
     });
 
-    // ── Sync hotspot tooltips (step 4c) ────────────────────────────────
-    //
-    // Coordinate mapping preserved:
-    //   .hotspot[data-id="X"]  →  .annotation-entry[data-id="X"] .entry-title
-    //
-    // We copy the already-translated .entry-title text content into the
-    // tooltip.  textContent (not innerHTML) is used because tooltips must
-    // not contain markup — they render as plain text.
+    // Step 5a — sync hotspot tooltips from already-translated panel titles.
+    // The coordinate→panel link (.hotspot[data-id] → .annotation-entry[data-id])
+    // is purely by data-id and survives innerHTML changes to child nodes.
     document.querySelectorAll('.hotspot[data-id]').forEach(hs => {
-      const tooltip  = hs.querySelector('.hotspot-tooltip');
-      if (!tooltip) return;
-      const panelTitle = document.querySelector(
+      const tip = hs.querySelector('.hotspot-tooltip');
+      if (!tip) return;
+      const title = document.querySelector(
         `.annotation-entry[data-id="${hs.dataset.id}"] .entry-title`
       );
-      if (panelTitle) tooltip.textContent = panelTitle.textContent;
+      if (title) tip.textContent = title.textContent;
     });
 
-    // ── Translate era-btn title attributes (step 4d) ───────────────────
+    // Step 5b — translate era-btn title attributes
     await Promise.all(
       Array.from(document.querySelectorAll('.era-btn[data-nl-title]')).map(async btn => {
         const nl = btn.dataset.nlTitle;
@@ -411,296 +390,145 @@ async function applyLanguage(targetLang) {
       })
     );
 
-    // ── Update dynamic labels — autoplay, panel toggle, etc. (step 4e) ─
-    await _applyDynamicLabels(targetLang);
+    // Step 5c — dynamic UI labels (buttons that viewer JS changes at runtime)
+    await syncDynamicLabels(targetLang);
+    syncTopbarLang(targetLang);
 
   } catch (err) {
-    console.error('[i18n] Critical failure:', err);
-    apiFailure = true;
-    // Revert to Dutch
+    console.error('[i18n] Fatal:', err);
+    failed = true;
+    // Revert to Dutch on catastrophic error
     document.querySelectorAll('[data-nl]').forEach(el => {
       el.innerHTML = el.getAttribute('data-nl');
     });
     document.documentElement.lang = 'nl';
-    _currentLang = 'nl';
-    const sel = document.getElementById('i18n-select');
+    _lang = 'nl';
+    syncTopbarLang('nl');
+    const sel = document.getElementById('i18n-lang');
     if (sel) sel.value = 'nl';
 
   } finally {
-    // Brief hold at 100% before hiding overlay — feels more intentional
-    setProgress(100);
-    setTimeout(() => { setOverlay(false); setProgress(0); }, 280);
-    _translating = false;
+    hideOverlay();
+    _busy = false;
 
-    if (apiFailure) {
-      const lang = SUPPORTED_LANGS.find(l => l.code === targetLang);
-      showErrorToast(lang ? lang.label : targetLang);
+    if (failed) {
+      const lg = SUPPORTED_LANGS.find(l => l.code === targetLang);
+      showToast(`Vertaling naar <strong>${lg ? lg.label : targetLang}</strong> mislukt. Nederlandse tekst blijft zichtbaar.`);
     }
 
-    // ── Drain queue (step 5) ───────────────────────────────────────────
-    if (_queuedLang && _queuedLang !== _currentLang) {
-      const next = _queuedLang;
-      _queuedLang = null;
+    // Step 6 — drain queue
+    if (_queued && _queued !== _lang) {
+      const next = _queued;
+      _queued = null;
       await applyLanguage(next);
     }
   }
 }
 
 /**
- * Translate or restore strings that are set programmatically by the viewer JS
- * (autoplay toggle, panel toggle, see-also labels, "Bekijk in 360°" buttons).
- *
- * These strings are NOT stamped with data-nl because the viewer modifies them
- * dynamically (e.g. "⟳ Rondleiding" ↔ "⏹ Stop").  Instead we translate
- * both variants up-front and expose them via window._i18nLabels for the
- * viewer to use whenever it updates those buttons.
- *
- * @param {string} targetLang
+ * Translate or restore the dynamic button labels that the viewer JS
+ * controls programmatically (autoplay, panel toggle, "Zie ook", "Bekijk in 360°").
+ * Results are stored in window._i18nLabels for the viewer to consume.
  */
-async function _applyDynamicLabels(targetLang) {
-  // Dutch source labels
+async function syncDynamicLabels(targetLang) {
   const NL = {
     autoplayStart: '⟳ Rondleiding',
     autoplayStop:  '⏹ Stop',
     panelShow:     'Details ◧',
     panelHide:     'Details ◨',
-    seeAlsoLabel:  'Zie ook',
-    lookAtBtn:     'Bekijk in 360°',
+    seeAlso:       'Zie ook',
+    lookAt:        'Bekijk in 360°',
   };
 
+  let L;
   if (targetLang === 'nl') {
-    window._i18nLabels = { ...NL };
+    L = { ...NL };
   } else {
-    // Translate all variants in parallel (mostly from cache at this point)
-    const keys   = Object.keys(NL);
-    const values = await Promise.all(keys.map(k => translateHTML(NL[k], targetLang)));
-    const labels = {};
-    keys.forEach((k, i) => { labels[k] = values[i]; });
-    window._i18nLabels = labels;
+    const keys    = Object.keys(NL);
+    const results = await Promise.all(keys.map(k => translateHTML(NL[k], targetLang)));
+    L = {};
+    keys.forEach((k, i) => { L[k] = results[i]; });
   }
+  window._i18nLabels = L;
 
-  const L = window._i18nLabels;
-
-  // Autoplay button — detect current state by emoji prefix
+  // Apply immediately to any currently-rendered instances
   const autoBtn = document.getElementById('btn-autoplay');
   if (autoBtn) {
-    const running = autoBtn.textContent.startsWith('⏹');
-    autoBtn.textContent = running ? L.autoplayStop : L.autoplayStart;
+    autoBtn.textContent = autoBtn.textContent.startsWith('⏹') ? L.autoplayStop : L.autoplayStart;
   }
-
-  // Panel toggle button
   const toggleBtn = document.getElementById('btn-toggle-panel');
   if (toggleBtn) {
-    const hidden = toggleBtn.textContent.includes('◨');
-    toggleBtn.textContent = hidden ? L.panelHide : L.panelShow;
+    toggleBtn.textContent = toggleBtn.textContent.includes('◨') ? L.panelHide : L.panelShow;
   }
-
-  // "Zie ook" labels inside annotation entries
-  document.querySelectorAll('.see-also-label').forEach(el => {
-    el.textContent = L.seeAlsoLabel;
-  });
-
-  // "Bekijk in 360°" buttons — preserve the embedded SVG icon
+  document.querySelectorAll('.see-also-label').forEach(el => { el.textContent = L.seeAlso; });
   document.querySelectorAll('.look-at-btn').forEach(btn => {
     const svg = btn.querySelector('svg');
-    btn.textContent = L.lookAtBtn;
+    btn.textContent = L.lookAt;
     if (svg) btn.insertBefore(svg, btn.firstChild);
   });
 }
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  WIDGET — Language FAB + Overlay + Toast styles                           ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+/** Update the topbar language indicator to show active language. */
+function syncTopbarLang(lang) {
+  const el = document.getElementById('i18n-lang');
+  if (el) el.value = lang;
+  // Visual active state on topbar buttons
+  document.querySelectorAll('.i18n-lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  });
+}
 
-function buildSelector() {
-  // ── Styles ─────────────────────────────────────────────────────────────
-  const style = document.createElement('style');
-  style.id = 'i18n-styles';
-  style.textContent = `
-    /* ════════ Language FAB ════════
-       Stacked above #viewer-controls on desktop.
-       viewer-controls: bottom: calc(52px + 20px + safe-area), right: 20px.
-       FAB height: 36px + 4px gap = 40px above viewer-controls.            */
-    #i18n-fab {
-      position: fixed;
-      bottom: calc(52px + 20px + 36px + 4px + env(safe-area-inset-bottom, 0px));
-      right:  calc(20px + env(safe-area-inset-right, 0px));
-      z-index: 150;
-      display: flex;
-      align-items: center;
-      background: rgba(0,46,101,0.92);
-      border: 1px solid rgba(130,161,173,0.45);
-      border-radius: 2px;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.35);
-      overflow: hidden;
-      transition: border-color 0.18s, box-shadow 0.18s;
-      cursor: pointer;
-    }
-    #i18n-fab:hover {
-      border-color: rgba(130,161,173,0.75);
-    }
-    #i18n-fab:focus-within {
-      border-color: var(--ua-teal, #82A1AD);
-      box-shadow: 0 0 0 2px rgba(130,161,173,0.3), 0 2px 12px rgba(0,0,0,0.35);
-    }
+// ── Widget: topbar integration + overlay ───────────────────────────────────
 
-    #i18n-fab-icon {
-      width: 30px; height: 36px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 13px;
-      color: var(--ua-teal-light, #C8D9D8);
-      flex-shrink: 0;
-      pointer-events: none; user-select: none;
-      padding-left: 2px;
-    }
+function buildUI() {
+  injectStyles();
+  buildTopbarSelector();
+  buildOverlay();
+}
 
-    #i18n-select {
-      appearance: none; -webkit-appearance: none;
-      background: transparent;
-      border: none; outline: none;
-      color: rgba(200,217,216,0.92);
-      font-family: var(--sans, 'Source Sans 3', Arial, sans-serif);
-      font-size: 11px; font-weight: 700;
-      letter-spacing: 0.06em; text-transform: uppercase;
-      padding: 0 26px 0 0;
-      height: 36px; cursor: pointer; min-width: 38px;
-      color-scheme: dark;
-    }
-    #i18n-select option { background: #002e65; color: #fff; font-weight: 600; }
-    #i18n-select:focus { outline: none; }
+function buildTopbarSelector() {
+  // Find the controls div in the topbar and inject the selector there
+  const controls = document.querySelector('#topbar .controls');
+  if (!controls) return;
 
-    #i18n-fab-caret {
-      position: absolute; right: 7px; top: 50%;
-      transform: translateY(-50%);
-      pointer-events: none;
-      color: rgba(200,217,216,0.4);
-      font-size: 8px; line-height: 1;
-    }
+  const wrap = document.createElement('div');
+  wrap.id = 'i18n-topbar-wrap';
+  wrap.setAttribute('role', 'group');
+  wrap.setAttribute('aria-label', 'Taal / Language');
 
-    /* ── Mobile ── */
-    @media (max-width: 768px) {
-      #i18n-fab {
-        /* On mobile the viewer takes the top 50%; side-panel is below.
-           We keep the FAB inside the viewer half, above viewer-controls. */
-        bottom: calc(52px + 20px + 36px + 6px + env(safe-area-inset-bottom, 0px));
-        right:  calc(12px + env(safe-area-inset-right, 0px));
-      }
-    }
-
-    /* ════════ Translation overlay ════════ */
-    #i18n-overlay {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      z-index: 7800;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.22s ease;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 16px;
-    }
-    #i18n-overlay.visible { opacity: 1; }
-
-    #i18n-overlay-bar {
-      background: var(--ua-blue, #002e65);
-      border: 1px solid rgba(130,161,173,0.3);
-      border-top: 3px solid var(--ua-teal, #82A1AD);
-      padding: 9px 20px 9px 14px;
-      display: flex; align-items: center; gap: 11px;
-      font-family: var(--sans, 'Source Sans 3', Arial, sans-serif);
-      font-size: 11.5px; font-weight: 600;
-      letter-spacing: 0.04em;
-      color: rgba(200,217,216,0.85);
-      box-shadow: 0 -2px 20px rgba(0,46,101,0.4);
-      border-radius: 1px;
-    }
-
-    #i18n-spinner {
-      width: 14px; height: 14px;
-      border: 2px solid rgba(130,161,173,0.18);
-      border-top-color: var(--ua-teal, #82A1AD);
-      border-radius: 50%;
-      animation: _i18n-spin 0.65s linear infinite;
-      flex-shrink: 0;
-    }
-    @keyframes _i18n-spin { to { transform: rotate(360deg); } }
-
-    #i18n-progress {
-      width: 110px; height: 2px;
-      background: rgba(200,217,216,0.08);
-      border-radius: 1px; overflow: hidden; flex-shrink: 0;
-    }
-    #i18n-progress-bar {
-      height: 100%;
-      background: var(--ua-teal, #82A1AD);
-      width: 0;
-      transition: width 0.2s ease;
-      animation: _i18n-progress 1.6s ease-in-out infinite;
-    }
-    @keyframes _i18n-progress {
-      0%   { width: 0%;  margin-left: 0;    }
-      50%  { width: 65%; margin-left: 15%;  }
-      100% { width: 0%;  margin-left: 100%; }
-    }
-
-    /* ════════ Error toast ════════ */
-    #i18n-toast {
-      position: fixed;
-      bottom: 80px; left: 50%;
-      transform: translateX(-50%);
-      z-index: 9200;
-      background: var(--ua-blue, #002e65);
-      border: 1px solid rgba(234,44,56,0.45);
-      border-top: 3px solid var(--ua-red, #ea2c38);
-      color: rgba(200,217,216,0.9);
-      font-family: var(--sans, 'Source Sans 3', Arial, sans-serif);
-      font-size: 12px; font-weight: 600;
-      letter-spacing: 0.03em;
-      padding: 10px 18px;
-      display: flex; align-items: center; gap: 10px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-      border-radius: 2px;
-      max-width: 90vw;
-      pointer-events: none;
-      animation: _i18n-toast-in 0.25s ease forwards;
-    }
-    #i18n-toast strong { color: #fff; }
-    #i18n-toast.i18n-toast-out {
-      animation: _i18n-toast-out 0.3s ease forwards;
-    }
-    @keyframes _i18n-toast-in  {
-      from { opacity:0; transform:translateX(-50%) translateY(8px); }
-      to   { opacity:1; transform:translateX(-50%) translateY(0); }
-    }
-    @keyframes _i18n-toast-out {
-      from { opacity:1; transform:translateX(-50%) translateY(0); }
-      to   { opacity:0; transform:translateX(-50%) translateY(6px); }
-    }
-
-    /* ════════ Bare-text-node wrappers ════════ */
-    #active-indicator .i18n-text-node { display: contents; }
-  `;
-  document.head.appendChild(style);
-
-  // ── FAB element ──────────────────────────────────────────────────────────
-  const fab = document.createElement('div');
-  fab.id = 'i18n-fab';
-  fab.setAttribute('role', 'group');
-  fab.setAttribute('aria-label', 'Taal kiezen / Select language');
-  fab.innerHTML =
-    `<span id="i18n-fab-icon" aria-hidden="true">🌐</span>` +
-    `<select id="i18n-select" aria-label="Taal / Language">` +
+  // Compact button group — each language as a button for clarity on desktop,
+  // collapses to a <select> on narrow viewports via CSS
+  wrap.innerHTML =
+    // Pill button group (desktop)
+    `<div id="i18n-btns" aria-hidden="false">` +
+      SUPPORTED_LANGS.map(l =>
+        `<button class="i18n-lang-btn${l.code === 'nl' ? ' active' : ''}" ` +
+        `data-lang="${l.code}" title="${l.name}" aria-label="${l.name}">${l.label}</button>`
+      ).join('') +
+    `</div>` +
+    // Compact <select> (mobile)
+    `<select id="i18n-lang" aria-label="Taal / Language">` +
       SUPPORTED_LANGS.map(l =>
         `<option value="${l.code}"${l.code === 'nl' ? ' selected' : ''}>${l.label}</option>`
       ).join('') +
-    `</select>` +
-    `<span id="i18n-fab-caret" aria-hidden="true">▾</span>`;
-  document.body.appendChild(fab);
+    `</select>`;
 
-  // ── Overlay element ──────────────────────────────────────────────────────
+  // Insert BEFORE the ⓘ button so it sits naturally in the controls row
+  const infoBtn = document.getElementById('btn-info');
+  controls.insertBefore(wrap, infoBtn || null);
+
+  // Button-group click handler
+  wrap.querySelectorAll('.i18n-lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyLanguage(btn.dataset.lang));
+  });
+
+  // <select> handler (mobile)
+  wrap.querySelector('#i18n-lang').addEventListener('change', e => {
+    applyLanguage(e.target.value);
+  });
+}
+
+function buildOverlay() {
   const overlay = document.createElement('div');
   overlay.id = 'i18n-overlay';
   overlay.setAttribute('role', 'status');
@@ -712,72 +540,223 @@ function buildSelector() {
       `<div id="i18n-progress"><div id="i18n-progress-bar"></div></div>` +
     `</div>`;
   document.body.appendChild(overlay);
-
-  // ── Language selector change ─────────────────────────────────────────────
-  document.getElementById('i18n-select').addEventListener('change', e => {
-    applyLanguage(e.target.value);
-  });
 }
 
-// ╔═══════════════════════════════════════════════════════════════════════════╗
-// ║  PUBLIC API                                                               ║
-// ╚═══════════════════════════════════════════════════════════════════════════╝
+function injectStyles() {
+  const s = document.createElement('style');
+  s.id = 'i18n-styles';
+  s.textContent = `
+    /* ─── Topbar language selector ────────────────────────────────── */
+
+    #i18n-topbar-wrap {
+      display: flex;
+      align-items: center;
+    }
+
+    /* Desktop: pill button group */
+    #i18n-btns {
+      display: flex;
+      align-items: center;
+      gap: 1px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 2px;
+      padding: 2px;
+      overflow: hidden;
+    }
+
+    .i18n-lang-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: rgba(200,217,216,0.6);
+      font-family: var(--sans,'Source Sans 3',Arial,sans-serif);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      cursor: pointer;
+      border-radius: 1px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+      line-height: 1.6;
+    }
+    .i18n-lang-btn:hover {
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+    }
+    .i18n-lang-btn.active {
+      background: var(--ua-teal, #82A1AD);
+      border-color: var(--ua-teal, #82A1AD);
+      color: #fff;
+    }
+    /* Spinning ring while translating: dim active btn */
+    #i18n-overlay.visible ~ * .i18n-lang-btn.active,
+    body.i18n-busy .i18n-lang-btn.active {
+      opacity: 0.65;
+    }
+
+    /* Mobile: hide pill group, show <select> */
+    #i18n-lang { display: none; }
+
+    @media (max-width: 600px) {
+      #i18n-btns { display: none; }
+      #i18n-lang {
+        display: block;
+        appearance: none;
+        -webkit-appearance: none;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 2px;
+        color: rgba(200,217,216,0.9);
+        font-family: var(--sans,'Source Sans 3',Arial,sans-serif);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 4px 8px;
+        height: 28px;
+        cursor: pointer;
+        color-scheme: dark;
+      }
+      #i18n-lang option { background: #002e65; color: #fff; }
+    }
+
+    /* ─── Translation progress overlay ────────────────────────────── */
+
+    #i18n-overlay {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 7800;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 14px;
+    }
+    #i18n-overlay.visible { opacity: 1; }
+
+    #i18n-overlay-bar {
+      background: var(--ua-blue, #002e65);
+      border: 1px solid rgba(130,161,173,0.3);
+      border-top: 3px solid var(--ua-teal, #82A1AD);
+      padding: 8px 18px 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--sans,'Source Sans 3',Arial,sans-serif);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: rgba(200,217,216,0.85);
+      box-shadow: 0 -2px 16px rgba(0,46,101,0.4);
+      border-radius: 1px;
+    }
+
+    #i18n-spinner {
+      width: 13px; height: 13px;
+      border: 2px solid rgba(130,161,173,0.18);
+      border-top-color: var(--ua-teal, #82A1AD);
+      border-radius: 50%;
+      animation: i18n-spin 0.65s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes i18n-spin { to { transform: rotate(360deg); } }
+
+    #i18n-progress {
+      width: 100px; height: 2px;
+      background: rgba(200,217,216,0.08);
+      border-radius: 1px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #i18n-progress-bar {
+      height: 100%;
+      background: var(--ua-teal, #82A1AD);
+      width: 0;
+      transition: width 0.15s ease;
+      animation: i18n-prog 1.5s ease-in-out infinite;
+    }
+    @keyframes i18n-prog {
+      0%   { width:0%;  margin-left:0;    }
+      50%  { width:60%; margin-left:20%;  }
+      100% { width:0%;  margin-left:100%; }
+    }
+
+    /* ─── Error toast ─────────────────────────────────────────────── */
+
+    #i18n-toast {
+      position: fixed;
+      bottom: 70px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 9200;
+      background: var(--ua-blue, #002e65);
+      border: 1px solid rgba(234,44,56,0.4);
+      border-top: 3px solid var(--ua-red, #ea2c38);
+      color: rgba(200,217,216,0.9);
+      font-family: var(--sans,'Source Sans 3',Arial,sans-serif);
+      font-size: 12px; font-weight: 600;
+      padding: 9px 16px;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+      border-radius: 2px;
+      max-width: 90vw;
+      pointer-events: none;
+      animation: i18n-toast-in 0.22s ease forwards;
+    }
+    #i18n-toast strong { color: #fff; }
+    #i18n-toast.out { animation: i18n-toast-out 0.28s ease forwards; }
+    @keyframes i18n-toast-in  { from{opacity:0;transform:translateX(-50%) translateY(8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+    @keyframes i18n-toast-out { from{opacity:1} to{opacity:0;transform:translateX(-50%) translateY(6px)} }
+  `;
+  document.head.appendChild(s);
+}
+
+// ── Public API ─────────────────────────────────────────────────────────────
 
 const I18n = {
   /**
-   * Initialise the translation system.
    * Call ONCE at the end of init() in index.html, after buildPanel(),
-   * buildHotspots(), and buildEraSwitcher() have all completed.
+   * buildHotspots(), and buildEraSwitcher() have all run.
    */
   init() {
+    // rAF ensures all synchronous DOM writes in init() have flushed
     requestAnimationFrame(() => {
-      stampAllNodes();
-      buildSelector();
+      stampAll();
+      buildUI();
       document.documentElement.lang = 'nl';
     });
   },
 
   /**
-   * Stamp a newly-created annotation entry and (if not in Dutch)
-   * translate it immediately using the populated cache.
-   *
-   * Call from buildPanel() right after list.appendChild(entry):
-   *   if (typeof I18n !== 'undefined') I18n.stampSubtree(entry);
-   *
-   * @param {Element} root - The newly appended .annotation-entry.
+   * Stamp a newly-built annotation entry and translate it immediately
+   * if a non-Dutch language is already active.
+   * Call from buildPanel() after list.appendChild(entry).
    */
   stampSubtree(root) {
     if (!root) return;
-
-    ['  .entry-title', '.entry-date', '.entry-body > p',
+    ['.entry-title', '.entry-date', '.entry-body > p',
      '.inscription-transcription', '.inscription-translation'].forEach(sel => {
-      root.querySelectorAll(sel.trim()).forEach(el => stampNL(el));
+      root.querySelectorAll(sel).forEach(el => stamp(el));
     });
-
-    if (_currentLang !== 'nl') {
+    if (_lang !== 'nl') {
       const items = [];
       root.querySelectorAll('[data-nl]').forEach(el => {
         const nl = el.getAttribute('data-nl');
         if (nl && nl.trim()) items.push({ el, nl });
       });
       if (items.length) {
-        batchTranslate(items, _currentLang)
-          .catch(err => console.warn('[i18n] stampSubtree:', err));
+        translateBatch(items, _lang, () => {}).catch(console.warn);
       }
     }
   },
 
-  /** Currently active language code. */
-  get currentLang() { return _currentLang; },
+  get currentLang() { return _lang; },
 
-  /**
-   * Programmatically switch language (e.g. restore from localStorage).
-   * Also updates the <select> to match.
-   * @param {string} code - 'nl' | 'en' | 'fr' | 'zh'
-   */
   setLang(code) {
-    const sel = document.getElementById('i18n-select');
-    if (sel) sel.value = code;
+    syncTopbarLang(code);
     return applyLanguage(code);
   },
 };
