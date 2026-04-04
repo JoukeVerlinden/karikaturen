@@ -524,7 +524,7 @@ const HOTSPOTS = [
       {
         type: "inscription",
         id:    "T5",
-        title: "T5 Da zal wel kunne zijn",
+        title: "Da zal wel kunne zijn",
         date:  "1910",
         corners: [[53.34, 10.33], [61.08, 10.33], [61.08, 6.86], [53.34, 6.86]],
         zoom: 20,
@@ -532,7 +532,7 @@ const HOTSPOTS = [
         transcription: [
           "Da zal wel kunne zijn"
         ],
-        translation: "It could be like that"
+        translation: ""
       }
 
   
