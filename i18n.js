@@ -90,8 +90,9 @@ const LEAF_SELECTORS = [
   // Annotation entries
   '.entry-title', '.entry-date', '.entry-body > p',
   // Inscription blocks — transcriptions are kept verbatim (original wall text);
-  // only the translation note below the transcription is translated.
-  '.inscription-translation',
+  // the label ("Transcriptie") IS translated, the contents are not.
+  // The authored translation note and the injected machine-translation are also translated.
+  '.inscription-label', '.inscription-translation',
   // Viewer hint
   '#viewer-hint',
 ];
@@ -137,6 +138,14 @@ function htmlToTranslatable(html) {
 // ── Translation API ────────────────────────────────────────────────────────
 
 /**
+ * Language code mapping: our UI codes → API-specific codes.
+ * Google Translate requires 'zh-CN' for Simplified Chinese; 'zh' is rejected
+ * or misrouted. MyMemory likewise expects 'zh-CN'.
+ */
+const LANG_MAP = { zh: 'zh-CN' };
+function apiLang(code) { return LANG_MAP[code] || code; }
+
+/**
  * Translate one plain-text string using the Google Translate unofficial API.
  * Throws on network error or non-200 response.
  *
@@ -151,7 +160,7 @@ function htmlToTranslatable(html) {
 async function googleTranslate(text, targetLang) {
   const url =
     'https://translate.googleapis.com/translate_a/single' +
-    `?client=gtx&sl=nl&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+    `?client=gtx&sl=nl&tl=${apiLang(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
 
   const ctrl = new AbortController();
   const tid  = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -179,7 +188,7 @@ async function googleTranslate(text, targetLang) {
 async function myMemoryTranslate(text, targetLang) {
   const url =
     `https://api.mymemory.translated.net/get` +
-    `?q=${encodeURIComponent(text)}&langpair=nl|${targetLang}`;
+    `?q=${encodeURIComponent(text)}&langpair=nl|${apiLang(targetLang)}`;
 
   const ctrl = new AbortController();
   const tid  = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
