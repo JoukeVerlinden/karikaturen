@@ -198,7 +198,7 @@ const HOTSPOTS = [
       },
       {
         id:    "A10",
-        title: "AVictor Regnart",
+        title: "Victor Regnart",
         date:  "1913",
         pitch: 32.4, yaw: 288.8,
         zoom: 20,
