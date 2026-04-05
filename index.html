@@ -2266,11 +2266,40 @@ function buildPanel() {
     entry.querySelector('.look-at-btn').addEventListener('click', e => {
       e.stopPropagation(); setActive(hs.id, true);
     });
-    // See-also chip clicks — navigate to linked hotspot
+    // See-also chip clicks — navigate to linked hotspot.
+    // If the target hotspot is hidden in the current era, switch to the
+    // scene that shows everything (highest-year scene, index 1 = "ca. 2025")
+    // before activating, so the panorama actually shows the hotspot.
     entry.querySelectorAll('.see-also-chip').forEach(chip => {
       chip.addEventListener('click', e => {
         e.stopPropagation();
-        setActive(chip.dataset.goto, true);
+        const targetId = chip.dataset.goto;
+        const targetHs = HOTSPOTS.find(h => h.id === targetId);
+
+        // Check visibility in the current scene
+        const cfg = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
+        const scenes = cfg.scenes || [];
+        const currentScene = scenes[currentSceneIndex];
+        const isVisible = !targetHs || !currentScene ||
+                          hotspotVisibleForYear(targetHs, currentScene.year);
+
+        if (!isVisible) {
+          // Find the scene with the largest year — it shows all hotspots.
+          // Per SITE_CONFIG that is index 1 ("ca. 2025").
+          let allVisibleIndex = 0;
+          let maxYear = -Infinity;
+          scenes.forEach((sc, idx) => {
+            if (sc.year > maxYear) { maxYear = sc.year; allVisibleIndex = idx; }
+          });
+
+          // switchToScene has a 260 ms flash transition before it applies the
+          // scene filter. Delay setActive by the same amount so the panorama
+          // texture and hotspot layer are ready when flyTo() fires.
+          switchToScene(allVisibleIndex);
+          setTimeout(() => setActive(targetId, true), 300);
+        } else {
+          setActive(targetId, true);
+        }
       });
     });
 
