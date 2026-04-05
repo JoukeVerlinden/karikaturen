@@ -382,6 +382,22 @@ async function applyLanguage(targetLang) {
       setProgress(Math.round((done / total) * 100));
     });
 
+    // Step 4b — for Chinese, append the translated title in parentheses
+    // after the original Dutch name so both scripts are visible.
+    // e.g. "Louise Brohée" → "Louise Brohée (路易丝·布罗赫)"
+    // This runs only for zh; the entry-title nodes already hold their
+    // translated text from translateBatch above.
+    if (targetLang === 'zh') {
+      document.querySelectorAll('.entry-title[data-nl]').forEach(el => {
+        const dutch      = el.getAttribute('data-nl').trim();
+        const translated = el.textContent.trim();
+        // Only append if the translation actually differs from Dutch
+        if (translated && translated !== dutch) {
+          el.textContent = dutch + ' (' + translated + ')';
+        }
+      });
+    }
+
     // Step 5a — sync hotspot tooltips from already-translated panel titles.
     // The coordinate→panel link (.hotspot[data-id] → .annotation-entry[data-id])
     // is purely by data-id and survives innerHTML changes to child nodes.
@@ -675,7 +691,7 @@ function injectStyles() {
     /* Mobile: hide pill group, show <select> */
     #i18n-lang { display: none; }
 
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       #i18n-btns { display: none; }
       #i18n-lang {
         display: block;
@@ -688,12 +704,14 @@ function injectStyles() {
         font-family: var(--sans,'Source Sans 3',Arial,sans-serif);
         font-size: 10px;
         font-weight: 700;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        padding: 4px 8px;
-        height: 28px;
+        padding: 0 8px;
+        height: 26px;
+        line-height: 26px;
         cursor: pointer;
         color-scheme: dark;
+        vertical-align: middle;
       }
       #i18n-lang option { background: #002e65; color: #fff; }
     }
