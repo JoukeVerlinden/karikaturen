@@ -57,7 +57,7 @@ const SITE_CONFIG = {
     
     <h3>Digitale ontwikkeling</h3>
     <p>
-      <strong>Yiaming Ye</strong> — 3D reconstructie.<br>
+      <strong>Jiaming Ye</strong> — 3D reconstructie.<br>
       <strong>Jouke Verlinden</strong> - Ontwerp en programmering.
     </p>
     <h3>Met dank aan</h3>
